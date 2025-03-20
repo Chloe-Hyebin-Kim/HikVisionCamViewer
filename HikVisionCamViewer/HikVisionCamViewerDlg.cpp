@@ -14,15 +14,14 @@
 // 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
 #pragma region CAboutDlg
 
-class CAboutDlg : public CDialogEx
+class CAboutDlg : public CDialog
 {
 public:
 	CAboutDlg();
 
 	// 대화 상자 데이터입니다.
-#ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
-#endif
+
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 지원입니다.
@@ -32,16 +31,16 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
-CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
+CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
 {
 }
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
-	CDialogEx::DoDataExchange(pDX);
+	CDialog::DoDataExchange(pDX);
 }
 
-BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 END_MESSAGE_MAP()
 
 
@@ -53,29 +52,38 @@ END_MESSAGE_MAP()
 
 
 CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
-	: CDialogEx(IDD_HIKVISIONCAMVIEWER_DIALOG, pParent)
+	: CDialog(CHikVisionCamViewerDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
 void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
-	CDialogEx::DoDataExchange(pDX);
+	CDialog::DoDataExchange(pDX);
+
+	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);
+	DDX_Control(pDX, IDC_BUTTON2, m_btnCameraPause);
+	DDX_Control(pDX, IDC_BUTTON3, m_btnCameraStop);
 }
 
-BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialogEx)
+BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+
+
+
+	ON_BN_CLICKED(IDC_BUTTON1, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
+	ON_BN_CLICKED(IDC_BUTTON2, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
+	ON_BN_CLICKED(IDC_BUTTON3, &CHikVisionCamViewerDlg::OnBnClickedCamStop)
+
 END_MESSAGE_MAP()
 
 // CHikVisionCamViewerDlg 메시지 처리기
 
-#pragma region CHikVisionCamViewerDlg_MESSAGE_afx_msg
-
 BOOL CHikVisionCamViewerDlg::OnInitDialog()
 {
-	CDialogEx::OnInitDialog();
+	CDialog::OnInitDialog();
 
 	// 시스템 메뉴에 "정보..." 메뉴 항목을 추가합니다.
 
@@ -89,11 +97,16 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 		BOOL bNameValid;
 		CString strAboutMenu;
 		bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
+
 		ASSERT(bNameValid);
 		if (!strAboutMenu.IsEmpty())
 		{
 			pSysMenu->AppendMenu(MF_SEPARATOR);
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
+
+			/*pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON1, strAboutMenu);
+			pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON2, strAboutMenu);
+			pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON3, strAboutMenu);*/
 		}
 	}
 
@@ -103,6 +116,9 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+
+
+	m_bCameraStarted = false;
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -116,7 +132,7 @@ void CHikVisionCamViewerDlg::OnSysCommand(UINT nID, LPARAM lParam)
 	}
 	else
 	{
-		CDialogEx::OnSysCommand(nID, lParam);
+		CDialog::OnSysCommand(nID, lParam);
 	}
 }
 
@@ -145,7 +161,7 @@ void CHikVisionCamViewerDlg::OnPaint()
 	}
 	else
 	{
-		CDialogEx::OnPaint();
+		CDialog::OnPaint();
 	}
 }
 
@@ -156,6 +172,28 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CHikVisionCamViewerDlg::OnBnClickedCamStart()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.\
 
+	/*if (CameraStart() == false)
+	{
+		AfxMessageBox(_T("Cannot start Camera"));
+		return;
+	}*/
+}
 
-#pragma endregion CHikVisionCamViewerDlg_MESSAGE_afx_msg
+void CHikVisionCamViewerDlg::OnBnClickedCamPause()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	if (m_bCameraStarted)
+	{
+		m_bCameraStarted = false;
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedCamStop()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
