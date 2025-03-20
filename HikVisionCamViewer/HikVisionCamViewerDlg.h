@@ -1,5 +1,4 @@
-﻿
-// HikVisionCamViewerDlg.h: 헤더 파일
+﻿// HikVisionCamViewerDlg.h: 헤더 파일
 //
 
 #pragma once
@@ -8,7 +7,7 @@
 // CHikVisionCamViewerDlg 대화 상자
 class CHikVisionCamViewerDlg : public CDialogEx
 {
-// 생성입니다.
+	// 생성입니다.
 public:
 	CHikVisionCamViewerDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 
@@ -17,7 +16,7 @@ public:
 	enum { IDD = IDD_HIKVISIONCAMVIEWER_DIALOG };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
 
@@ -30,5 +29,9 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+
 	DECLARE_MESSAGE_MAP()
+
+public:
+	afx_msg void OnBnClickedButton1();
 };

@@ -12,6 +12,7 @@
 
 
 // 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
+#pragma region CAboutDlg
 
 class CAboutDlg : public CDialogEx
 {
@@ -46,6 +47,9 @@ END_MESSAGE_MAP()
 
 // CHikVisionCamViewerDlg 대화 상자
 
+#pragma endregion CAboutDlg
+
+
 
 
 CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
@@ -65,8 +69,9 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 END_MESSAGE_MAP()
 
-
 // CHikVisionCamViewerDlg 메시지 처리기
+
+#pragma region CHikVisionCamViewerDlg_MESSAGE_afx_msg
 
 BOOL CHikVisionCamViewerDlg::OnInitDialog()
 {
@@ -150,3 +155,7 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
 }
+
+
+
+#pragma endregion CHikVisionCamViewerDlg_MESSAGE_afx_msg
