@@ -20,6 +20,7 @@
 #include <afxext.h>         // MFC 확장입니다.
 #include <afxdisp.h>        // MFC
 
+//#include "afxdialogex.h"
 
 #ifndef _AFX_NO_OLE_SUPPORT
 #include <afxdtctl.h>               // Internet Explorer 4 공용 컨트롤에 대한 MFC 지원입니다.

@@ -13,6 +13,8 @@ public:
 	HikVisionCamera();
 	~HikVisionCamera();
 
+private:
+	void* m_hDevHandle;
 
 public:
 	static int GetSDKVersion();
@@ -80,7 +82,4 @@ public:
 	int ConvertPixelType(MV_CC_PIXEL_CONVERT_PARAM* pstCvtParam);
 
 	int SaveImage(MV_SAVE_IMAGE_PARAM_EX* pstParam);
-
-private:
-	void* m_hDevHandle;
 };

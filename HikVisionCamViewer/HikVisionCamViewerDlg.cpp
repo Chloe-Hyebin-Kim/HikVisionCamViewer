@@ -1,7 +1,6 @@
 ﻿// HikVisionCamViewerDlg.cpp: 구현 파일
 
 #include "stdafx.h"
-#include "framework.h"
 #include "HikVisionCamViewer.h"
 #include "HikVisionCamViewerDlg.h"
 #include "afxdialogex.h"
@@ -10,8 +9,7 @@
 #define new DEBUG_NEW
 #endif
 
-
-// 응용 프로그램 정보에 사용되는 CAboutDlg 대화 상자입니다.
+// CAboutDlg dialog used for App About
 #pragma region CAboutDlg
 
 class CAboutDlg : public CDialog
@@ -19,14 +17,14 @@ class CAboutDlg : public CDialog
 public:
 	CAboutDlg();
 
-	// 대화 상자 데이터입니다.
+	// Dialog Data
 	enum { IDD = IDD_ABOUTBOX };
 
 
 protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 지원입니다.
+	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
-// 구현입니다.
+// Implementation
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -43,8 +41,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 END_MESSAGE_MAP()
 
-
-// CHikVisionCamViewerDlg 대화 상자
+// CHikVisionCamViewerDlg dialog
 
 #pragma endregion CAboutDlg
 
@@ -52,9 +49,12 @@ END_MESSAGE_MAP()
 
 
 CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
-	: CDialog(CHikVisionCamViewerDlg::IDD, pParent)
+	: CDialog(CHikVisionCamViewerDlg::IDD, pParent), m_pcMyCamera(NULL)
+	, m_i32DeviceCombo(0)
+	, m_bOpenDevice(FALSE)
 {
 	m_bCameraStarted = false;
+	m_bOpenDevice = false;
 
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -63,25 +63,30 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 
-	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraList);
-	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
-
-	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);
+	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);//BTNCAMERASTART
 	DDX_Control(pDX, IDC_BUTTON2, m_btnCameraPause);
 	DDX_Control(pDX, IDC_BUTTON3, m_btnCameraStop);
+
+	DDX_Control(pDX, IDC_BUTTON4, m_btnCameraSearch);
+	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraList);
+	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
 }
 
 BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-
-
-	ON_BN_CLICKED(IDC_BUTTON4, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
+	// }}AFX_MSG_MAP
 
 	ON_BN_CLICKED(IDC_BUTTON1, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
 	ON_BN_CLICKED(IDC_BUTTON2, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
 	ON_BN_CLICKED(IDC_BUTTON3, &CHikVisionCamViewerDlg::OnBnClickedCamStop)
+
+	ON_BN_CLICKED(IDC_BUTTON4, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
+
+	//ON_BN_CLICKED(IDC_GET_PARAMETER_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedGetParameterButton)
+	//ON_BN_CLICKED(IDC_SET_PARAMETER_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedSetParameterButton)
+
 
 
 END_MESSAGE_MAP()
@@ -110,20 +115,15 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 		{
 			pSysMenu->AppendMenu(MF_SEPARATOR);
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
-
-			/*pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON1, strAboutMenu);
-			pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON2, strAboutMenu);
-			pSysMenu->AppendMenu(MF_STRING, IDC_BUTTON3, strAboutMenu);*/
 		}
 	}
 
-	// 이 대화 상자의 아이콘을 설정합니다.  응용 프로그램의 주 창이 대화 상자가 아닐 경우에는
-	//  프레임워크가 이 작업을 자동으로 수행합니다.
 	SetIcon(m_hIcon, TRUE);			// 큰 아이콘을 설정합니다.
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
-	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+	DisplayWindowInitial();
 
+	InitializeCriticalSection(&m_hSaveImageMux);
 
 	m_bCameraStarted = false;
 
@@ -178,6 +178,256 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
 }
+
+
+void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
+{
+	GetDlgItem(IDC_BUTTON1)->EnableWindow(m_bOpenDevice ? FALSE : (bIsCameraReady ? TRUE : FALSE));		//CameraStart
+	GetDlgItem(IDC_BUTTON2)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraPause
+	GetDlgItem(IDC_BUTTON3)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraStop
+
+//GetDlgItem(IDC_START_GRABBING_BUTTON)->EnableWindow((m_bStartGrabbing && bIsCameraReady) ? FALSE : (m_bOpenDevice ? TRUE : FALSE));
+//GetDlgItem(IDC_STOP_GRABBING_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+//GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow((m_bStartGrabbing && m_bSoftWareTriggerCheck && ((CButton*)GetDlgItem(IDC_TRIGGER_MODE_RADIO))->GetCheck()) ? TRUE : FALSE);
+//GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//GetDlgItem(IDC_EXPOSURE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+//GetDlgItem(IDC_GAIN_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+//GetDlgItem(IDC_FRAME_RATE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	//GetDlgItem(IDC_GET_PARAMETER_BUTTON)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	//GetDlgItem(IDC_SET_PARAMETER_BUTTON)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	//GetDlgItem(IDC_CONTINUS_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	//GetDlgItem(IDC_TRIGGER_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+}
+
+void CHikVisionCamViewerDlg::DisplayWindowInitial()
+{
+	CWnd* pWnd = GetDlgItem(IDC_DISPLAY_STATIC);
+	if (pWnd)
+	{
+		m_hwndDisplay = pWnd->GetSafeHwnd();//Display Handle
+		if (m_hwndDisplay)
+		{
+			EnableControls(FALSE);
+		}
+	}
+}
+void CHikVisionCamViewerDlg::ShowErrorMsg(CString csMessage, int nErrorNum)
+{
+	CString errorMsg;
+	if (nErrorNum == 0)
+	{
+		errorMsg.Format(_T("%s"), csMessage);
+	}
+	else
+	{
+		errorMsg.Format(_T("%s: Error = %x: "), csMessage, nErrorNum);
+	}
+
+	switch (nErrorNum)
+	{
+	case MV_E_HANDLE:           errorMsg += "Error or invalid handle ";                                         break;
+	case MV_E_SUPPORT:          errorMsg += "Not supported function ";                                          break;
+	case MV_E_BUFOVER:          errorMsg += "Cache is full ";                                                   break;
+	case MV_E_CALLORDER:        errorMsg += "Function calling order error ";                                    break;
+	case MV_E_PARAMETER:        errorMsg += "Incorrect parameter ";                                             break;
+	case MV_E_RESOURCE:         errorMsg += "Applying resource failed ";                                        break;
+	case MV_E_NODATA:           errorMsg += "No data ";                                                         break;
+	case MV_E_PRECONDITION:     errorMsg += "Precondition error, or running environment changed ";              break;
+	case MV_E_VERSION:          errorMsg += "Version mismatches ";                                              break;
+	case MV_E_NOENOUGH_BUF:     errorMsg += "Insufficient memory ";                                             break;
+	case MV_E_ABNORMAL_IMAGE:   errorMsg += "Abnormal image, maybe incomplete image because of lost packet ";   break;
+	case MV_E_UNKNOW:           errorMsg += "Unknown error ";                                                   break;
+	case MV_E_GC_GENERIC:       errorMsg += "General error ";                                                   break;
+	case MV_E_GC_ACCESS:        errorMsg += "Node accessing condition error ";                                  break;
+	case MV_E_ACCESS_DENIED:	errorMsg += "No permission ";                                                   break;
+	case MV_E_BUSY:             errorMsg += "Device is busy, or network disconnected ";                         break;
+	case MV_E_NETER:            errorMsg += "Network error ";                                                   break;
+	}
+
+	MessageBox(errorMsg, TEXT("PROMPT"), MB_OK | MB_ICONWARNING);
+}
+
+
+
+
+int CHikVisionCamViewerDlg::GetTriggerMode()
+{
+	MVCC_ENUMVALUE stEnumValue = { 0 };
+
+	int nRet = m_pcMyCamera->GetEnumValue("TriggerMode", &stEnumValue);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+
+	m_i32TriggerMode = stEnumValue.nCurValue;
+
+	if (MV_TRIGGER_MODE_ON == m_i32TriggerMode)
+	{
+		//OnBnClickedTriggerModeRadio();
+		ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_ON] OnBnClickedTriggerModeRadio"), 0);
+	}
+	else
+	{
+		m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
+		//OnBnClickedContinusModeRadio();
+		ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_OFF] OnBnClickedContinusModeRadio"), 0);
+	}
+
+	return MV_OK;
+}
+
+int CHikVisionCamViewerDlg::SetTriggerMode()
+{
+	return m_pcMyCamera->SetEnumValue("TriggerMode", m_i32TriggerMode);
+}
+
+int CHikVisionCamViewerDlg::GetExposureTime()
+{
+	MVCC_FLOATVALUE stFloatValue = { 0 };
+
+	int nRet = m_pcMyCamera->GetFloatValue("ExposureTime", &stFloatValue);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+
+	m_f64ExposureEdit = stFloatValue.fCurValue;
+
+	return MV_OK;
+}
+
+int CHikVisionCamViewerDlg::SetExposureTime()
+{
+	//Adjust these two exposure mode to allow exposure time effective
+	int nRet = m_pcMyCamera->SetEnumValue("ExposureMode", MV_EXPOSURE_MODE_TIMED);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+
+	m_pcMyCamera->SetEnumValue("ExposureAuto", MV_EXPOSURE_AUTO_MODE_OFF);
+
+	return m_pcMyCamera->SetFloatValue("ExposureTime", (float)m_f64ExposureEdit);
+}
+
+int CHikVisionCamViewerDlg::GetGain()
+{
+	MVCC_FLOATVALUE stFloatValue = { 0 };
+
+	int nRet = m_pcMyCamera->GetFloatValue("Gain", &stFloatValue);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+	m_f64GainEdit = stFloatValue.fCurValue;
+
+	return MV_OK;
+}
+
+int CHikVisionCamViewerDlg::SetGain()
+{
+	// Set Gain after Auto Gain is turned off, this failure does not need to return
+	m_pcMyCamera->SetEnumValue("GainAuto", 0);
+
+	return m_pcMyCamera->SetFloatValue("Gain", (float)m_f64GainEdit);
+}
+
+int CHikVisionCamViewerDlg::GetFrameRate()
+{
+	MVCC_FLOATVALUE stFloatValue = { 0 };
+
+	int nRet = m_pcMyCamera->GetFloatValue("ResultingFrameRate", &stFloatValue);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+	m_f64FrameRateEdit = stFloatValue.fCurValue;
+
+	return MV_OK;
+}
+
+int CHikVisionCamViewerDlg::SetFrameRate()
+{
+	int nRet = m_pcMyCamera->SetBoolValue("AcquisitionFrameRateEnable", true);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+
+	return m_pcMyCamera->SetFloatValue("AcquisitionFrameRate", (float)m_f64FrameRateEdit);
+}
+
+int CHikVisionCamViewerDlg::GetTriggerSource()
+{
+	MVCC_ENUMVALUE stEnumValue = { 0 };
+
+	int nRet = m_pcMyCamera->GetEnumValue("TriggerSource", &stEnumValue);
+	if (MV_OK != nRet)
+	{
+		return nRet;
+	}
+
+	if ((unsigned int)MV_TRIGGER_SOURCE_SOFTWARE == stEnumValue.nCurValue)
+	{
+		m_bSoftWareTriggerCheck = TRUE;
+	}
+	else
+	{
+		m_bSoftWareTriggerCheck = FALSE;
+	}
+
+	return MV_OK;
+}
+
+int CHikVisionCamViewerDlg::SetTriggerSource()
+{
+	int nRet = MV_OK;
+	if (m_bSoftWareTriggerCheck)
+	{
+		m_i32TriggerSource = MV_TRIGGER_SOURCE_SOFTWARE;
+		nRet = m_pcMyCamera->SetEnumValue("TriggerSource", m_i32TriggerSource);
+		if (MV_OK != nRet)
+		{
+			ShowErrorMsg(TEXT("Set Software Trigger Fail"), nRet);
+			return nRet;
+		}
+		//GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(TRUE);
+	}
+	else
+	{
+		m_i32TriggerSource = MV_TRIGGER_SOURCE_LINE0;
+		nRet = m_pcMyCamera->SetEnumValue("TriggerSource", m_i32TriggerSource);
+		if (MV_OK != nRet)
+		{
+			ShowErrorMsg(TEXT("Set Hardware Trigger Fail"), nRet);
+			return nRet;
+		}
+		//GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(FALSE);
+	}
+
+	return nRet;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 {
@@ -275,13 +525,76 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 
 void CHikVisionCamViewerDlg::OnBnClickedCamStart()
 {
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.\
-
-	/*if (CameraStart() == false)
+	if (TRUE == m_bOpenDevice || NULL != m_pcMyCamera)
 	{
-		AfxMessageBox(_T("Cannot start Camera"));
 		return;
-	}*/
+	}
+
+	UpdateData(TRUE);
+
+	int nIndex = m_i32DeviceCombo;
+	if ((nIndex < 0) | (nIndex >= MV_MAX_DEVICE_NUM))
+	{
+		ShowErrorMsg(TEXT("Please select device"), 0);
+		return;
+	}
+
+	if (NULL == m_stDevList.pDeviceInfo[nIndex])
+	{
+		ShowErrorMsg(TEXT("Device does not exist"), 0);
+		return;
+	}
+
+	m_pcMyCamera = new HikVisionCamera;
+	if (NULL == m_pcMyCamera)
+	{
+		return;
+	}
+
+	int nRet = m_pcMyCamera->Open(m_stDevList.pDeviceInfo[nIndex]);
+	if (MV_OK != nRet)
+	{
+		delete m_pcMyCamera;
+		m_pcMyCamera = NULL;
+		ShowErrorMsg(TEXT("Open Fail"), nRet);
+		return;
+	}
+
+	/////////////////////
+	if (false == m_bCameraStarted)
+	{
+		m_bCameraStarted = true;
+	}
+
+	if (m_bCameraStarted)
+	{
+		AfxMessageBox(_T("Camera already started."));
+		return;
+	}
+	/////////////////////
+
+	// Detection network optimal package size(It only works for the GigE camera)
+	if (m_stDevList.pDeviceInfo[nIndex]->nTLayerType == MV_GIGE_DEVICE)
+	{
+		unsigned int nPacketSize = 0;
+		nRet = m_pcMyCamera->GetOptimalPacketSize(&nPacketSize);
+		if (nRet == MV_OK)
+		{
+			nRet = m_pcMyCamera->SetIntValue("GevSCPSPacketSize", nPacketSize);
+			if (nRet != MV_OK)
+			{
+				ShowErrorMsg(TEXT("Warning: Set Packet Size fail!"), nRet);
+			}
+		}
+		else
+		{
+			ShowErrorMsg(TEXT("Warning: Get Packet Size fail!"), nRet);
+		}
+	}
+
+	m_bOpenDevice = TRUE;
+	EnableControls(TRUE);
+	OnBnClickedGetParameterButton(); // ch:삿혤꽝鑒 | en:Get Parameter
 }
 
 void CHikVisionCamViewerDlg::OnBnClickedCamPause()
@@ -299,38 +612,70 @@ void CHikVisionCamViewerDlg::OnBnClickedCamStop()
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 }
 
-void CHikVisionCamViewerDlg::ShowErrorMsg(CString csMessage, int nErrorNum)
+void CHikVisionCamViewerDlg::OnBnClickedGetParameterButton()
 {
-	CString errorMsg;
-	if (nErrorNum == 0)
+	int nRet = GetTriggerMode();
+	if (nRet != MV_OK)
 	{
-		errorMsg.Format(_T("%s"), csMessage);
-	}
-	else
-	{
-		errorMsg.Format(_T("%s: Error = %x: "), csMessage, nErrorNum);
+		ShowErrorMsg(TEXT("Get Trigger Mode Fail"), nRet);
 	}
 
-	switch (nErrorNum)
+	nRet = GetExposureTime();
+	if (nRet != MV_OK)
 	{
-	case MV_E_HANDLE:           errorMsg += "Error or invalid handle ";                                         break;
-	case MV_E_SUPPORT:          errorMsg += "Not supported function ";                                          break;
-	case MV_E_BUFOVER:          errorMsg += "Cache is full ";                                                   break;
-	case MV_E_CALLORDER:        errorMsg += "Function calling order error ";                                    break;
-	case MV_E_PARAMETER:        errorMsg += "Incorrect parameter ";                                             break;
-	case MV_E_RESOURCE:         errorMsg += "Applying resource failed ";                                        break;
-	case MV_E_NODATA:           errorMsg += "No data ";                                                         break;
-	case MV_E_PRECONDITION:     errorMsg += "Precondition error, or running environment changed ";              break;
-	case MV_E_VERSION:          errorMsg += "Version mismatches ";                                              break;
-	case MV_E_NOENOUGH_BUF:     errorMsg += "Insufficient memory ";                                             break;
-	case MV_E_ABNORMAL_IMAGE:   errorMsg += "Abnormal image, maybe incomplete image because of lost packet ";   break;
-	case MV_E_UNKNOW:           errorMsg += "Unknown error ";                                                   break;
-	case MV_E_GC_GENERIC:       errorMsg += "General error ";                                                   break;
-	case MV_E_GC_ACCESS:        errorMsg += "Node accessing condition error ";                                  break;
-	case MV_E_ACCESS_DENIED:	errorMsg += "No permission ";                                                   break;
-	case MV_E_BUSY:             errorMsg += "Device is busy, or network disconnected ";                         break;
-	case MV_E_NETER:            errorMsg += "Network error ";                                                   break;
+		ShowErrorMsg(TEXT("Get Exposure Time Fail"), nRet);
 	}
 
-	MessageBox(errorMsg, TEXT("PROMPT"), MB_OK | MB_ICONWARNING);
+	nRet = GetGain();
+	if (nRet != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Gain Fail"), nRet);
+	}
+
+	nRet = GetFrameRate();
+	if (nRet != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Frame Rate Fail"), nRet);
+	}
+
+	nRet = GetTriggerSource();
+	if (nRet != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Trigger Source Fail"), nRet);
+	}
+
+	UpdateData(FALSE);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSetParameterButton()
+{
+	UpdateData(TRUE);
+
+	bool bIsSetSucceed = true;
+
+	int nRet = SetExposureTime();
+	if (nRet != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Exposure Time Fail"), nRet);
+	}
+
+	nRet = SetGain();
+	if (nRet != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Gain Fail"), nRet);
+	}
+
+	nRet = SetFrameRate();
+	if (nRet != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Frame Rate Fail"), nRet);
+	}
+
+	if (true == bIsSetSucceed)
+	{
+		ShowErrorMsg(TEXT("Set Parameter Succeed"), nRet);
+	}
 }
