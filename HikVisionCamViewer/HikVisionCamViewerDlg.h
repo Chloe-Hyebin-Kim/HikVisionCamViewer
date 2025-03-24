@@ -26,7 +26,8 @@ private:
 	CButton m_btnCameraPause;	//IDC_BUTTON2
 	CButton m_btnCameraStop;	//IDC_BUTTON3
 
-	CComboBox m_cbCameraSearch;	//IDC_BUTTON4
+	CButton m_cbCameraSearch;	//IDC_BUTTON4
+	CComboBox m_cbCameraList;	//IDC_DEVICE_COMBO
 
 	//CComboBox
 	//CComboBox m_cbDeviceCombo;

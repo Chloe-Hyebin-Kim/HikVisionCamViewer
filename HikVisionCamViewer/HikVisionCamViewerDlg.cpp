@@ -63,7 +63,7 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 
-	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraSearch);
+	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraList);
 	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
 
 	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);
@@ -77,7 +77,7 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 
 
-	ON_BN_CLICKED(IDC_DEVICE_COMBO, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
+	ON_BN_CLICKED(IDC_BUTTON4, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
 
 	ON_BN_CLICKED(IDC_BUTTON1, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
 	ON_BN_CLICKED(IDC_BUTTON2, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
@@ -183,13 +183,13 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 {
 	CString strMsg;
 
-	// ch:헌뇜구죗깊움櫓돨斤口 | en:Clear Device List Information
-	m_cbCameraSearch.ResetContent();
+	//Clear Device List Information
+	m_cbCameraList.ResetContent();
 
-	// ch:놓迦뺏구斤口죗깊 | en:Device Information List Initialization
+	//Device Information List Initialization
 	memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
-	// ch:철앨綾貢코杰唐구 | en:Enumerate all devices within subnet
+	// Enumerate all devices within subnet
 	int nRet = HikVisionCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);
 	if (MV_OK != nRet)
 	{
@@ -254,7 +254,7 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 		{
 			ShowErrorMsg(TEXT("Unknown device enumerated"), 0);
 		}
-		m_cbCameraSearch.AddString(strMsg);
+		m_cbCameraList.AddString(strMsg);
 
 		if (pUserName)
 		{
@@ -263,7 +263,7 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 		}
 	}
 
-	m_cbCameraSearch.SetCurSel(0);
+	m_cbCameraList.SetCurSel(0);
 
 	if (0 == m_stDevList.nDeviceNum)
 	{

@@ -211,7 +211,6 @@
     <ResourceCompile Include="HikVisionCamViewer.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ClassDiagram.cd" />
     <None Include="res\HikVisionCamViewer.rc2" />
   </ItemGroup>
   <ItemGroup>
