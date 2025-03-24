@@ -54,12 +54,17 @@ END_MESSAGE_MAP()
 CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
 	: CDialog(CHikVisionCamViewerDlg::IDD, pParent)
 {
+	m_bCameraStarted = false;
+
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
 void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
+
+	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraSearch);
+	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
 
 	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);
 	DDX_Control(pDX, IDC_BUTTON2, m_btnCameraPause);
@@ -72,10 +77,12 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 
 
+	ON_BN_CLICKED(IDC_DEVICE_COMBO, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
 
 	ON_BN_CLICKED(IDC_BUTTON1, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
 	ON_BN_CLICKED(IDC_BUTTON2, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
 	ON_BN_CLICKED(IDC_BUTTON3, &CHikVisionCamViewerDlg::OnBnClickedCamStop)
+
 
 END_MESSAGE_MAP()
 
@@ -172,6 +179,100 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
+{
+	CString strMsg;
+
+	// ch:헌뇜구죗깊움櫓돨斤口 | en:Clear Device List Information
+	m_cbCameraSearch.ResetContent();
+
+	// ch:놓迦뺏구斤口죗깊 | en:Device Information List Initialization
+	memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
+
+	// ch:철앨綾貢코杰唐구 | en:Enumerate all devices within subnet
+	int nRet = HikVisionCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);
+	if (MV_OK != nRet)
+	{
+		return;
+	}
+
+	for (unsigned int i = 0; i < m_stDevList.nDeviceNum; i++)
+	{
+		MV_CC_DEVICE_INFO* pDeviceInfo = m_stDevList.pDeviceInfo[i];
+		if (NULL == pDeviceInfo)
+		{
+			continue;
+		}
+
+		wchar_t* pUserName = NULL;
+		if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
+		{
+			int nIp1 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
+			int nIp2 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
+			int nIp3 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
+			int nIp4 = (m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
+
+			if (strcmp("", (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName)) != 0)
+			{
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
+			}
+			else
+			{
+				char strUserName[256] = { 0 };
+				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stGigEInfo.chManufacturerName,
+					pDeviceInfo->SpecialInfo.stGigEInfo.chModelName,
+					pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber);
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
+			}
+			strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
+		}
+		else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
+		{
+			if (strcmp("", (char*)pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName) != 0)
+			{
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
+			}
+			else
+			{
+				char strUserName[256] = { 0 };
+				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stUsb3VInfo.chManufacturerName,
+					pDeviceInfo->SpecialInfo.stUsb3VInfo.chModelName,
+					pDeviceInfo->SpecialInfo.stUsb3VInfo.chSerialNumber);
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
+			}
+			strMsg.Format(_T("[%d]UsbV3:  %s"), i, pUserName);
+		}
+		else
+		{
+			ShowErrorMsg(TEXT("Unknown device enumerated"), 0);
+		}
+		m_cbCameraSearch.AddString(strMsg);
+
+		if (pUserName)
+		{
+			delete[] pUserName;
+			pUserName = NULL;
+		}
+	}
+
+	m_cbCameraSearch.SetCurSel(0);
+
+	if (0 == m_stDevList.nDeviceNum)
+	{
+		ShowErrorMsg(TEXT("No device"), 0);
+		return;
+	}
+	m_btnCameraStart.EnableWindow(TRUE);
+}
+
 void CHikVisionCamViewerDlg::OnBnClickedCamStart()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.\
@@ -196,4 +297,40 @@ void CHikVisionCamViewerDlg::OnBnClickedCamPause()
 void CHikVisionCamViewerDlg::OnBnClickedCamStop()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
+
+void CHikVisionCamViewerDlg::ShowErrorMsg(CString csMessage, int nErrorNum)
+{
+	CString errorMsg;
+	if (nErrorNum == 0)
+	{
+		errorMsg.Format(_T("%s"), csMessage);
+	}
+	else
+	{
+		errorMsg.Format(_T("%s: Error = %x: "), csMessage, nErrorNum);
+	}
+
+	switch (nErrorNum)
+	{
+	case MV_E_HANDLE:           errorMsg += "Error or invalid handle ";                                         break;
+	case MV_E_SUPPORT:          errorMsg += "Not supported function ";                                          break;
+	case MV_E_BUFOVER:          errorMsg += "Cache is full ";                                                   break;
+	case MV_E_CALLORDER:        errorMsg += "Function calling order error ";                                    break;
+	case MV_E_PARAMETER:        errorMsg += "Incorrect parameter ";                                             break;
+	case MV_E_RESOURCE:         errorMsg += "Applying resource failed ";                                        break;
+	case MV_E_NODATA:           errorMsg += "No data ";                                                         break;
+	case MV_E_PRECONDITION:     errorMsg += "Precondition error, or running environment changed ";              break;
+	case MV_E_VERSION:          errorMsg += "Version mismatches ";                                              break;
+	case MV_E_NOENOUGH_BUF:     errorMsg += "Insufficient memory ";                                             break;
+	case MV_E_ABNORMAL_IMAGE:   errorMsg += "Abnormal image, maybe incomplete image because of lost packet ";   break;
+	case MV_E_UNKNOW:           errorMsg += "Unknown error ";                                                   break;
+	case MV_E_GC_GENERIC:       errorMsg += "General error ";                                                   break;
+	case MV_E_GC_ACCESS:        errorMsg += "Node accessing condition error ";                                  break;
+	case MV_E_ACCESS_DENIED:	errorMsg += "No permission ";                                                   break;
+	case MV_E_BUSY:             errorMsg += "Device is busy, or network disconnected ";                         break;
+	case MV_E_NETER:            errorMsg += "Network error ";                                                   break;
+	}
+
+	MessageBox(errorMsg, TEXT("PROMPT"), MB_OK | MB_ICONWARNING);
 }

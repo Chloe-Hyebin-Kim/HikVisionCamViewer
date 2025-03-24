@@ -194,6 +194,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="HikVisionCamera.h" />
     <ClInclude Include="HikVisionCamViewer.h" />
     <ClInclude Include="HikVisionCamViewerDlg.h" />
     <ClInclude Include="Resource.h" />
@@ -201,6 +202,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="HikVisionCamera.cpp" />
     <ClCompile Include="HikVisionCamViewer.cpp" />
     <ClCompile Include="HikVisionCamViewerDlg.cpp" />
     <ClCompile Include="stdafx.cpp" />
