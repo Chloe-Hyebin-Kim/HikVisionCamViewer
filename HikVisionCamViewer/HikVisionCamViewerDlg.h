@@ -31,67 +31,88 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 public:
+	/*** Camera Init ***/
+	afx_msg void OnBnClickedmCameraSearch();		//IDC_BTN_CAMSEARCH
+
+	afx_msg void OnBnClickedCamOpen();				//IDC_BTN_CAMOPEN
+	afx_msg void OnBnClickedCamClose();				//IDC_BTN_CAMCLOSE
+
 	/*** Camera Control ***/
 	afx_msg void OnBnClickedCamStart();				//IDC_BTN_CAMSTART
 	afx_msg void OnBnClickedCamPause();				//IDC_BTN_CAMPAUSE
 	afx_msg void OnBnClickedCamStop();				//IDC_BTN_CAMSTOP
-	afx_msg void OnBnClickedmCameraSearch();		//IDC_BTN_CAMSEARCH
 
 
 	/*** Parameters Get and Set ***/
 	afx_msg void OnBnClickedGetParameterButton();	// Get Parameter
 	afx_msg void OnBnClickedSetParameterButton();	// Exit from upper right corner
 
+	afx_msg void OnClose();
+
 private:
 	/*** Error Log ***/
-	void ShowErrorMsg(CString csMessage, int nErrorNum);
+	void ShowErrorMsg(CString csMessage, int i32ErrorNum);
 
 	/*** Window initialization ***/
 	void DisplayWindowInitial();
 	void EnableControls(bool bIsCameraReady);
 
-	//int CloseDevice();
+	int CloseDevice();
 
 	/*** Parameters Get and Set ***/
-	int SetTriggerMode();							// Set Trigger Mode
+	int SetTriggerMode();
 	int GetTriggerMode();
-	int GetExposureTime();							// Set Exposure Time
+	int GetExposureTime();
 	int SetExposureTime();
-	int GetGain();									// Set Gain
+	int GetGain();
 	int SetGain();
-	int GetFrameRate();								// Set Frame Rate
+	int GetFrameRate();
 	int SetFrameRate();
-	int GetTriggerSource();							// Set Trigger Source
+	int GetTriggerSource();
 	int SetTriggerSource();
+
+	bool RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat);
+
+public:
+	int GrabThreadProcess();
 
 private:
 	//CButton
-	CButton m_btnCameraStart;	//IDC_BTN_CAMSTART
-	CButton m_btnCameraPause;	//IDC_BTN_CAMPAUSE
-	CButton m_btnCameraStop;	//IDC_BTN_CAMSTOP
+	//CButton m_btnCameraOpen;	//IDC_BTN_CAMOPEN
+	//CButton m_btnCameraClose;	//IDC_BTN_CAMCLOSE
+
+	//CButton m_btnCameraStart;	//IDC_BTN_CAMSTART
+	//CButton m_btnCameraPause;	//IDC_BTN_CAMPAUSE
+	//CButton m_btnCameraStop;	//IDC_BTN_CAMSTOP
 
 	//Enumerated device
-	CButton m_btnCameraSearch;	//IDC_BTN_CAMSEARCH
+	//CButton m_btnCameraSearch;	//IDC_BTN_CAMSEARCH
 	CComboBox m_cbCameraList;	//IDC_DEVICE_COMBO
 
 private:
-	bool m_bCameraStarted;
+	int m_i32DeviceCombo; //m_cbCameraList - Enumerated device
+
 	bool m_bOpenDevice;
+	bool m_bStartGrabbing;
+	bool m_bThreadState;
 
 	bool m_bSoftWareTriggerCheck;
 
-	int m_i32DeviceCombo; //m_cbCameraList
 	int m_i32TriggerMode;
 	int m_i32TriggerSource;
 	double m_f64ExposureEdit;
 	double m_f64GainEdit;
 	double m_f64FrameRateEdit;
 
-private:
-	HikVisionCamera* m_pcMyCamera; // HikVisionCamera packed commonly used interface
+	HWND m_hwndDisplay; //Window display Handle
 
-	HWND m_hwndDisplay;//Display Handle
+	HikVisionCamera* m_pcMyCamera; // HikVisionCamera packed commonly used interface
+	MV_CC_DEVICE_INFO_LIST m_stDevList; //Device Information List ( Online Device Number,Support up to 256 devices)
+
+	void* m_hGrabThread; //Grab thread handle
 
 	CRITICAL_SECTION m_hSaveImageMux;
-	MV_CC_DEVICE_INFO_LIST m_stDevList;
+	MV_FRAME_OUT_INFO_EX m_stImageInfo;//Output Frame Information
+	unsigned char* m_pSaveImageBuf;
+	unsigned int m_ui32SaveImageBufSize;
 };

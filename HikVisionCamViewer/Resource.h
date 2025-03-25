@@ -18,9 +18,11 @@
 #define IDC_EXPOSURE_EDIT               1011
 #define IDC_FRAME_RATE_EDIT             1012
 #define IDC_GAIN_EDIT                   1013
+#define IDC_BTN_CAMOPEN                 1014
+#define IDC_BTN_CAMCLOSE                1015
 
 // Next default values for new objects
-//
+// 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
