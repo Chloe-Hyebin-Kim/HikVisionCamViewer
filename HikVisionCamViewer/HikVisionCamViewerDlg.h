@@ -32,10 +32,10 @@ protected:
 
 public:
 	/*** Camera Control ***/
-	afx_msg void OnBnClickedCamStart();				//IDC_BUTTON1
-	afx_msg void OnBnClickedCamPause();				//IDC_BUTTON2
-	afx_msg void OnBnClickedCamStop();				//IDC_BUTTON3
-	afx_msg void OnBnClickedmCameraSearch();		//IDC_BUTTON4
+	afx_msg void OnBnClickedCamStart();				//IDC_BTN_CAMSTART
+	afx_msg void OnBnClickedCamPause();				//IDC_BTN_CAMPAUSE
+	afx_msg void OnBnClickedCamStop();				//IDC_BTN_CAMSTOP
+	afx_msg void OnBnClickedmCameraSearch();		//IDC_BTN_CAMSEARCH
 
 
 	/*** Parameters Get and Set ***/
@@ -66,12 +66,12 @@ private:
 
 private:
 	//CButton
-	CButton m_btnCameraStart;	//IDC_BUTTON1
-	CButton m_btnCameraPause;	//IDC_BUTTON2
-	CButton m_btnCameraStop;	//IDC_BUTTON3
+	CButton m_btnCameraStart;	//IDC_BTN_CAMSTART
+	CButton m_btnCameraPause;	//IDC_BTN_CAMPAUSE
+	CButton m_btnCameraStop;	//IDC_BTN_CAMSTOP
 
 	//Enumerated device
-	CButton m_btnCameraSearch;	//IDC_BUTTON4
+	CButton m_btnCameraSearch;	//IDC_BTN_CAMSEARCH
 	CComboBox m_cbCameraList;	//IDC_DEVICE_COMBO
 
 private:

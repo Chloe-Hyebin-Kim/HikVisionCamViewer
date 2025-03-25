@@ -49,9 +49,16 @@ END_MESSAGE_MAP()
 
 
 CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
-	: CDialog(CHikVisionCamViewerDlg::IDD, pParent), m_pcMyCamera(NULL)
+	: CDialog(CHikVisionCamViewerDlg::IDD, pParent)
+	, m_pcMyCamera(NULL)
 	, m_i32DeviceCombo(0)
 	, m_bOpenDevice(FALSE)
+	, m_bSoftWareTriggerCheck(FALSE)
+	, m_i32TriggerMode(MV_TRIGGER_MODE_OFF)
+	, m_i32TriggerSource(MV_TRIGGER_SOURCE_SOFTWARE)
+	, m_f64ExposureEdit(0)
+	, m_f64GainEdit(0)
+	, m_f64FrameRateEdit(0)
 {
 	m_bCameraStarted = false;
 	m_bOpenDevice = false;
@@ -63,11 +70,11 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 
-	DDX_Control(pDX, IDC_BUTTON1, m_btnCameraStart);//BTNCAMERASTART
-	DDX_Control(pDX, IDC_BUTTON2, m_btnCameraPause);
-	DDX_Control(pDX, IDC_BUTTON3, m_btnCameraStop);
+	DDX_Control(pDX, IDC_BTN_CAMSTART, m_btnCameraStart);//BTNCAMERASTART
+	DDX_Control(pDX, IDC_BTN_CAMPAUSE, m_btnCameraPause);
+	DDX_Control(pDX, IDC_BTN_CAMSTOP, m_btnCameraStop);
 
-	DDX_Control(pDX, IDC_BUTTON4, m_btnCameraSearch);
+	DDX_Control(pDX, IDC_BTN_CAMSEARCH, m_btnCameraSearch);
 	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraList);
 	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
 }
@@ -78,14 +85,14 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_WM_QUERYDRAGICON()
 	// }}AFX_MSG_MAP
 
-	ON_BN_CLICKED(IDC_BUTTON1, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
-	ON_BN_CLICKED(IDC_BUTTON2, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
-	ON_BN_CLICKED(IDC_BUTTON3, &CHikVisionCamViewerDlg::OnBnClickedCamStop)
+	ON_BN_CLICKED(IDC_BTN_CAMSTART, &CHikVisionCamViewerDlg::OnBnClickedCamStart)
+	ON_BN_CLICKED(IDC_BTN_CAMPAUSE, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
+	ON_BN_CLICKED(IDC_BTN_CAMSTOP, &CHikVisionCamViewerDlg::OnBnClickedCamStop)
 
-	ON_BN_CLICKED(IDC_BUTTON4, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
+	ON_BN_CLICKED(IDC_BTN_CAMSEARCH, &CHikVisionCamViewerDlg::OnBnClickedmCameraSearch)
 
-	//ON_BN_CLICKED(IDC_GET_PARAMETER_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedGetParameterButton)
-	//ON_BN_CLICKED(IDC_SET_PARAMETER_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedSetParameterButton)
+	ON_BN_CLICKED(IDC_BTN_GET_PARAMETER, &CHikVisionCamViewerDlg::OnBnClickedGetParameterButton)
+	ON_BN_CLICKED(IDC_BTN_SET_PARAMETER, &CHikVisionCamViewerDlg::OnBnClickedSetParameterButton)
 
 
 
@@ -182,9 +189,9 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 
 void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
 {
-	GetDlgItem(IDC_BUTTON1)->EnableWindow(m_bOpenDevice ? FALSE : (bIsCameraReady ? TRUE : FALSE));		//CameraStart
-	GetDlgItem(IDC_BUTTON2)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraPause
-	GetDlgItem(IDC_BUTTON3)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraStop
+	GetDlgItem(IDC_BTN_CAMSTART)->EnableWindow(m_bOpenDevice ? FALSE : (bIsCameraReady ? TRUE : FALSE));		//CameraStart
+	GetDlgItem(IDC_BTN_CAMPAUSE)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraPause
+	GetDlgItem(IDC_BTN_CAMSTOP)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? TRUE : FALSE);			//CameraStop
 
 //GetDlgItem(IDC_START_GRABBING_BUTTON)->EnableWindow((m_bStartGrabbing && bIsCameraReady) ? FALSE : (m_bOpenDevice ? TRUE : FALSE));
 //GetDlgItem(IDC_STOP_GRABBING_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
@@ -194,11 +201,14 @@ void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
 //GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
 //GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
 //GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
-//GetDlgItem(IDC_EXPOSURE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
-//GetDlgItem(IDC_GAIN_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
-//GetDlgItem(IDC_FRAME_RATE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
-	//GetDlgItem(IDC_GET_PARAMETER_BUTTON)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
-	//GetDlgItem(IDC_SET_PARAMETER_BUTTON)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+
+	GetDlgItem(IDC_EXPOSURE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	GetDlgItem(IDC_FRAME_RATE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	GetDlgItem(IDC_GAIN_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+
+	GetDlgItem(IDC_BTN_GET_PARAMETER)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+	GetDlgItem(IDC_BTN_SET_PARAMETER)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
+
 	//GetDlgItem(IDC_CONTINUS_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
 	//GetDlgItem(IDC_TRIGGER_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
 }
@@ -565,12 +575,12 @@ void CHikVisionCamViewerDlg::OnBnClickedCamStart()
 	{
 		m_bCameraStarted = true;
 	}
-
-	if (m_bCameraStarted)
+	else// if (m_bCameraStarted)
 	{
 		AfxMessageBox(_T("Camera already started."));
 		return;
 	}
+
 	/////////////////////
 
 	// Detection network optimal package size(It only works for the GigE camera)
