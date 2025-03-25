@@ -70,6 +70,7 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 
+	//DDX_Control(pDX, IDC_BTN_CAMSEARCH, m_btnCameraSearch);
 	//DDX_Control(pDX, IDC_BTN_CAMOPEN, m_btnCameraOpen);
 	//DDX_Control(pDX, IDC_BTN_CAMCLOSE, m_btnCameraClose);
 
@@ -77,7 +78,9 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Control(pDX, IDC_BTN_CAMPAUSE, m_btnCameraPause);
 	//DDX_Control(pDX, IDC_BTN_CAMSTOP, m_btnCameraStop);
 
-	//DDX_Control(pDX, IDC_BTN_CAMSEARCH, m_btnCameraSearch);
+	//DDX_Control(pDX, IDC_RADIO_CONTINUS, m_btnContinusRadio);
+	//DDX_Control(pDX, IDC_RADIO_TRIGGER, m_btnTriggerRadio);
+
 	DDX_Control(pDX, IDC_DEVICE_COMBO, m_cbCameraList);
 	DDX_CBIndex(pDX, IDC_DEVICE_COMBO, m_i32DeviceCombo);
 
@@ -85,7 +88,7 @@ void CHikVisionCamViewerDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_GAIN_EDIT, m_f64GainEdit);
 	DDX_Text(pDX, IDC_FRAME_RATE_EDIT, m_f64FrameRateEdit);
 
-	//DDX_Check(pDX, IDC_SOFTWARE_TRIGGER_CHECK, m_bSoftWareTriggerCheck);
+	DDX_Check(pDX, IDC_SOFTWARE_TRIGGER_CHECK, m_bSoftWareTriggerCheck);
 }
 
 BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
@@ -103,11 +106,13 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_BN_CLICKED(IDC_BTN_CAMPAUSE, &CHikVisionCamViewerDlg::OnBnClickedCamPause)
 	ON_BN_CLICKED(IDC_BTN_CAMSTOP, &CHikVisionCamViewerDlg::OnBnClickedCamStop)	//ON_BN_CLICKED(IDC_STOP_GRABBING_BUTTON, &CBasicDemoDlg::OnBnClickedCamStop)
 
-
-
-
 	ON_BN_CLICKED(IDC_BTN_GET_PARAMETER, &CHikVisionCamViewerDlg::OnBnClickedGetParameterButton)
 	ON_BN_CLICKED(IDC_BTN_SET_PARAMETER, &CHikVisionCamViewerDlg::OnBnClickedSetParameterButton)
+
+	ON_BN_CLICKED(IDC_RADIO_CONTINUS, &CHikVisionCamViewerDlg::OnBnClickedContinusModeRadio)
+	ON_BN_CLICKED(IDC_RADIO_TRIGGER, &CHikVisionCamViewerDlg::OnBnClickedTriggerModeRadio)
+	ON_BN_CLICKED(IDC_SOFTWARE_TRIGGER_CHECK, &CHikVisionCamViewerDlg::OnBnClickedSoftwareTriggerCheck)
+	ON_BN_CLICKED(IDC_SOFTWARE_ONCE_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedSoftwareOnceButton)
 
 	ON_WM_CLOSE()
 END_MESSAGE_MAP()
@@ -254,14 +259,6 @@ void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
 	//GetDlgItem(IDC_BTN_CAMPAUSE)->EnableWindow((m_bOpenDevice && bIsCameraReady) ? true : false);	//CameraPause
 	GetDlgItem(IDC_BTN_CAMSTOP)->EnableWindow(m_bStartGrabbing ? true : false);
 
-	//GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->EnableWindow(m_bOpenDevice ? true : false);
-	//GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow((m_bStartGrabbing && m_bSoftWareTriggerCheck && ((CButton*)GetDlgItem(IDC_TRIGGER_MODE_RADIO))->GetCheck()) ? TRUE : FALSE);
-
-	//GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-	//GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-	//GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-	//GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-
 	GetDlgItem(IDC_EXPOSURE_EDIT)->EnableWindow(m_bOpenDevice ? true : false);
 	GetDlgItem(IDC_FRAME_RATE_EDIT)->EnableWindow(m_bOpenDevice ? true : false);
 	GetDlgItem(IDC_GAIN_EDIT)->EnableWindow(m_bOpenDevice ? true : false);
@@ -269,8 +266,15 @@ void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
 	GetDlgItem(IDC_BTN_GET_PARAMETER)->EnableWindow(m_bOpenDevice ? true : false);
 	GetDlgItem(IDC_BTN_SET_PARAMETER)->EnableWindow(m_bOpenDevice ? true : false);
 
-	//GetDlgItem(IDC_CONTINUS_MODE_RADIO)->EnableWindow(m_bOpenDevice ? true : false);
-	//GetDlgItem(IDC_TRIGGER_MODE_RADIO)->EnableWindow(m_bOpenDevice ? true : false);
+	GetDlgItem(IDC_RADIO_CONTINUS)->EnableWindow(m_bOpenDevice ? true : false);
+	GetDlgItem(IDC_RADIO_TRIGGER)->EnableWindow(m_bOpenDevice ? true : false);
+	GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->EnableWindow(m_bOpenDevice ? true : false);
+	GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow((m_bStartGrabbing && m_bSoftWareTriggerCheck && ((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->GetCheck()) ? TRUE : FALSE);
+
+	//GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
+	//GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
+	//GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
+	//GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
 }
 
 void CHikVisionCamViewerDlg::DisplayWindowInitial()
@@ -354,14 +358,14 @@ int CHikVisionCamViewerDlg::GetTriggerMode()
 
 	if (MV_TRIGGER_MODE_ON == m_i32TriggerMode)
 	{
-		//OnBnClickedTriggerModeRadio();
-		ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_ON] OnBnClickedTriggerModeRadio"), 0);
+		OnBnClickedTriggerModeRadio();
+		//ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_ON] OnBnClickedTriggerModeRadio"), 0);
 	}
 	else
 	{
 		m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
-		//OnBnClickedContinusModeRadio();
-		ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_OFF] OnBnClickedContinusModeRadio"), 0);
+		OnBnClickedContinusModeRadio();
+		//ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_OFF] OnBnClickedContinusModeRadio"), 0);
 	}
 
 	return MV_OK;
@@ -725,6 +729,67 @@ void CHikVisionCamViewerDlg::OnBnClickedCamClose()
 	EnableControls(true);
 }
 
+
+void CHikVisionCamViewerDlg::OnBnClickedContinusModeRadio()
+{
+	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(TRUE);
+	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(FALSE);
+	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(FALSE);
+
+	m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
+	int nRet = SetTriggerMode();
+	if (MV_OK != nRet)
+	{
+		return;
+	}
+	GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(FALSE);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedTriggerModeRadio()
+{
+	UpdateData(TRUE);
+
+	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(FALSE);
+	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(TRUE);
+	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(TRUE);
+
+	m_i32TriggerMode = MV_TRIGGER_MODE_ON;
+	int nRet = SetTriggerMode();
+	if (MV_OK != nRet)
+	{
+		ShowErrorMsg(TEXT("Set Trigger Mode Fail"), nRet);
+		return;
+	}
+
+	if (m_bStartGrabbing == TRUE)
+	{
+		if (TRUE == m_bSoftWareTriggerCheck)
+		{
+			GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(TRUE);
+		}
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSoftwareTriggerCheck()
+{
+	UpdateData(TRUE);
+
+	int nRet = SetTriggerSource();
+	if (nRet != MV_OK)
+	{
+		return;
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSoftwareOnceButton()
+{
+	if (TRUE != m_bStartGrabbing)
+	{
+		return;
+	}
+
+	m_pcMyCamera->CommandExecute("TriggerSoftware");
+}
 
 void CHikVisionCamViewerDlg::OnBnClickedCamStart()
 {

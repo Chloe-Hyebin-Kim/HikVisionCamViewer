@@ -42,10 +42,15 @@ public:
 	afx_msg void OnBnClickedCamPause();				//IDC_BTN_CAMPAUSE
 	afx_msg void OnBnClickedCamStop();				//IDC_BTN_CAMSTOP
 
-
 	/*** Parameters Get and Set ***/
 	afx_msg void OnBnClickedGetParameterButton();	// Get Parameter
 	afx_msg void OnBnClickedSetParameterButton();	// Exit from upper right corner
+
+	/*** Image Acquisition ***/
+	afx_msg void OnBnClickedContinusModeRadio();
+	afx_msg void OnBnClickedTriggerModeRadio();
+	afx_msg void OnBnClickedSoftwareTriggerCheck();
+	afx_msg void OnBnClickedSoftwareOnceButton();//Software Trigger Execute Once
 
 	afx_msg void OnClose();
 
@@ -85,6 +90,9 @@ private:
 	//CButton m_btnCameraPause;	//IDC_BTN_CAMPAUSE
 	//CButton m_btnCameraStop;	//IDC_BTN_CAMSTOP
 
+	//CButton m_btnContinusRadio;//IDC_RADIO_CONTINUS
+	//CButton m_btnTriggerRadio;//IDC_RADIO_TRIGGER
+
 	//Enumerated device
 	//CButton m_btnCameraSearch;	//IDC_BTN_CAMSEARCH
 	CComboBox m_cbCameraList;	//IDC_DEVICE_COMBO
@@ -96,13 +104,13 @@ private:
 	bool m_bStartGrabbing;
 	bool m_bThreadState;
 
-	bool m_bSoftWareTriggerCheck;
-
 	int m_i32TriggerMode;
 	int m_i32TriggerSource;
 	double m_f64ExposureEdit;
 	double m_f64GainEdit;
 	double m_f64FrameRateEdit;
+
+	BOOL m_bSoftWareTriggerCheck;
 
 	HWND m_hwndDisplay; //Window display Handle
 
