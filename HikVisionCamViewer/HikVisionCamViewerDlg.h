@@ -3,6 +3,9 @@
 
 #include "HikVisionCamera.h"
 
+#define WM_TIMER_GRAB_INFO 1
+#define MAX_DEVICE_NUM 4
+
 // CHikVisionCamViewerDlg dialog
 class CHikVisionCamViewerDlg : public CDialog
 {
@@ -27,7 +30,7 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
-
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	DECLARE_MESSAGE_MAP()
 
 public:
@@ -58,26 +61,27 @@ public:
 	afx_msg void OnClose();
 
 private:
-	/*** Error Log ***/
+	/*** Log ***/
 	void ShowErrorMsg(CString csMessage, int i32ErrorNum);
+	void PrintMessage(const char* pszFormat, ...);
 
 	/*** Window initialization ***/
 	void DisplayWindowInitial();
-	void EnableControls(bool bIsCameraReady);
+	void EnableControls(bool bIsCameraReady = true);
 
 	int CloseDevice();
 
 	/*** Parameters Get and Set ***/
-	int SetTriggerMode();
 	int GetTriggerMode();
+	void SetTriggerMode();
 	int GetExposureTime();
-	int SetExposureTime();
+	void SetExposureTime();
 	int GetGain();
-	int SetGain();
+	void SetGain();
 	int GetFrameRate();
-	int SetFrameRate();
+	void SetFrameRate();
 	int GetTriggerSource();
-	int SetTriggerSource();
+	void SetTriggerSource();
 
 	int SaveImage(MV_SAVE_IAMGE_TYPE enSaveImageType);
 
@@ -85,6 +89,8 @@ private:
 
 public:
 	int GrabThreadProcess();
+
+	int ThreadFunc(int nCurCameraIndex);
 
 private:
 	//CButton
@@ -101,13 +107,17 @@ private:
 	//Enumerated device
 	//CButton m_btnCameraSearch;	//IDC_BTN_CAMSEARCH
 	CComboBox m_cbCameraList;	//IDC_DEVICE_COMBO
+	CListBox m_ctrlListBoxInfo;
 
 private:
+	int m_i32ZoomInIndex;
+
 	int m_i32DeviceCombo; //m_cbCameraList - Enumerated device
 
 	bool m_bOpenDevice;
 	bool m_bStartGrabbing;
 	bool m_bThreadState;
+	BOOL m_bSoftWareTriggerCheck;
 
 	int m_i32TriggerMode;
 	int m_i32TriggerSource;
@@ -115,17 +125,36 @@ private:
 	double m_f64GainEdit;
 	double m_f64FrameRateEdit;
 
-	BOOL m_bSoftWareTriggerCheck;
 
-	HWND m_hwndDisplay; //Window display Handle
-
-	HikVisionCamera* m_pcMyCamera; // HikVisionCamera packed commonly used interface
 	MV_CC_DEVICE_INFO_LIST m_stDevList; //Device Information List ( Online Device Number,Support up to 256 devices)
 
-	void* m_hGrabThread; //Grab thread handle
+	////////////////////////////////
 
-	CRITICAL_SECTION m_hSaveImageMux;
-	MV_FRAME_OUT_INFO_EX m_stImageInfo;//Output Frame Information
-	unsigned char* m_pSaveImageBuf;
-	unsigned int m_ui32SaveImageBufSize;
+	//HWND m_hwndDisplay; //Window display Handle
+	//HikVisionCamera* m_pcMyCamera; // HikVisionCamera packed commonly used interface
+	//
+	//void* m_hGrabThread; //Grab thread handle
+	//
+	//CRITICAL_SECTION m_hSaveImageMux;
+	//MV_FRAME_OUT_INFO_EX m_stImageInfo;//Output Frame Information
+	//unsigned char* m_pSaveImageBuf;
+	//unsigned int m_ui32SaveImageBufSize;
+
+	////////////////////////////////
+
+	void* m_hGrabThreadArr[MAX_DEVICE_NUM]; //Grab thread handle
+
+	CRITICAL_SECTION m_hSaveImageMuxArr[MAX_DEVICE_NUM];
+	MV_FRAME_OUT_INFO_EX m_stImageInfoArr[MAX_DEVICE_NUM]; //Output Frame Information
+	unsigned char* m_pSaveImageBufArr[MAX_DEVICE_NUM];
+	unsigned int m_ui32SaveImageBufSizeArr[MAX_DEVICE_NUM];
+
+	BOOL m_bCamCheckArr[MAX_DEVICE_NUM];
+	unsigned int m_ui32ValidCamNum;
+
+public:
+	int m_i32CurCameraIndex;
+	HikVisionCamera* m_pcMyCameraArr[MAX_DEVICE_NUM]; // HikVisionCamera packed commonly used interface
+	HWND m_hwndDisplayArr[MAX_DEVICE_NUM]; //Window display Handle
+	CRect m_hwndRectArr[MAX_DEVICE_NUM];
 };
