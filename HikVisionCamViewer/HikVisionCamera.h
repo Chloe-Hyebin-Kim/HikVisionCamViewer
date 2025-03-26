@@ -82,4 +82,6 @@ public:
 	int ConvertPixelType(MV_CC_PIXEL_CONVERT_PARAM* pstCvtParam);
 
 	int SaveImage(MV_SAVE_IMAGE_PARAM_EX* pstParam);
+
+	int SaveImageToFile(MV_SAVE_IMG_TO_FILE_PARAM* pstSaveFileParam);
 };

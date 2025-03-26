@@ -24,14 +24,16 @@
 #define IDC_RADIO_TRIGGER               1017
 #define IDC_SOFTWARE_TRIGGER_CHECK      1019
 #define IDC_SOFTWARE_ONCE_BUTTON        1020
+#define IDC_BTN_JPG                     1021
+#define IDC_BTN_PNG                     1022
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1021
+#define _APS_NEXT_CONTROL_VALUE         1023
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

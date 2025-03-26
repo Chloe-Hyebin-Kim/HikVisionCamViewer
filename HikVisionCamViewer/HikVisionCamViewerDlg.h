@@ -52,6 +52,9 @@ public:
 	afx_msg void OnBnClickedSoftwareTriggerCheck();
 	afx_msg void OnBnClickedSoftwareOnceButton();//Software Trigger Execute Once
 
+	afx_msg void OnBnClickedSaveJpgButton();
+	afx_msg void OnBnClickedSavePngButton();
+
 	afx_msg void OnClose();
 
 private:
@@ -75,6 +78,8 @@ private:
 	int SetFrameRate();
 	int GetTriggerSource();
 	int SetTriggerSource();
+
+	int SaveImage(MV_SAVE_IAMGE_TYPE enSaveImageType);
 
 	bool RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat);
 

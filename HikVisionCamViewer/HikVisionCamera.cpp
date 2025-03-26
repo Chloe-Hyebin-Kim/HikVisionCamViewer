@@ -277,3 +277,8 @@ int HikVisionCamera::SaveImage(MV_SAVE_IMAGE_PARAM_EX* pstParam)
 {
 	return MV_CC_SaveImageEx2(m_hDevHandle, pstParam);
 }
+
+int HikVisionCamera::SaveImageToFile(MV_SAVE_IMG_TO_FILE_PARAM* pstSaveFileParam)
+{
+	return MV_CC_SaveImageToFile(m_hDevHandle, pstSaveFileParam);
+}

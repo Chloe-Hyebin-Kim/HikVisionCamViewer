@@ -62,6 +62,8 @@ CHikVisionCamViewerDlg::CHikVisionCamViewerDlg(CWnd* pParent /*=nullptr*/)
 	, m_f64GainEdit(0)
 	, m_f64FrameRateEdit(0)
 	, m_bSoftWareTriggerCheck(FALSE)
+	, m_pSaveImageBuf(NULL)
+	, m_ui32SaveImageBufSize(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -114,6 +116,9 @@ BEGIN_MESSAGE_MAP(CHikVisionCamViewerDlg, CDialog)
 	ON_BN_CLICKED(IDC_SOFTWARE_TRIGGER_CHECK, &CHikVisionCamViewerDlg::OnBnClickedSoftwareTriggerCheck)
 	ON_BN_CLICKED(IDC_SOFTWARE_ONCE_BUTTON, &CHikVisionCamViewerDlg::OnBnClickedSoftwareOnceButton)
 
+	ON_BN_CLICKED(IDC_BTN_JPG, &CHikVisionCamViewerDlg::OnBnClickedSaveJpgButton)
+	ON_BN_CLICKED(IDC_BTN_PNG, &CHikVisionCamViewerDlg::OnBnClickedSavePngButton)
+
 	ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
@@ -134,6 +139,66 @@ unsigned int __stdcall GrabThread(void* pUser)
 	}
 
 	return -1;
+}
+
+int CHikVisionCamViewerDlg::GrabThreadProcess()
+{
+	MV_FRAME_OUT stImageInfo = { 0 };
+	MV_DISPLAY_FRAME_INFO stDisplayInfo = { 0 };
+	int i32Ret = MV_OK;
+
+	while (m_bThreadState)
+	{
+		i32Ret = m_pcMyCamera->GetImageBuffer(&stImageInfo, 1000);//Get one frame initiatively (MV_CC_GetImageBuffer)
+		if (i32Ret == MV_OK)
+		{
+			EnterCriticalSection(&m_hSaveImageMux);
+			if (NULL == m_pSaveImageBuf || stImageInfo.stFrameInfo.nFrameLen > m_ui32SaveImageBufSize)
+			{
+				if (m_pSaveImageBuf)
+				{
+					free(m_pSaveImageBuf);
+					m_pSaveImageBuf = NULL;
+				}
+
+				m_pSaveImageBuf = (unsigned char*)malloc(sizeof(unsigned char) * stImageInfo.stFrameInfo.nFrameLen);
+				if (m_pSaveImageBuf == NULL)
+				{
+					LeaveCriticalSection(&m_hSaveImageMux);
+					return 0;
+				}
+				m_ui32SaveImageBufSize = stImageInfo.stFrameInfo.nFrameLen;
+			}
+			memcpy(m_pSaveImageBuf, stImageInfo.pBufAddr, stImageInfo.stFrameInfo.nFrameLen);
+			memcpy(&m_stImageInfo, &(stImageInfo.stFrameInfo), sizeof(MV_FRAME_OUT_INFO_EX));
+			LeaveCriticalSection(&m_hSaveImageMux);
+
+			if (RemoveCustomPixelFormats(stImageInfo.stFrameInfo.enPixelType))
+			{
+				m_pcMyCamera->FreeImageBuffer(&stImageInfo); // MV_CC_FreeImageBuffer
+				continue;
+			}
+
+			stDisplayInfo.hWnd = m_hwndDisplay;
+			stDisplayInfo.pData = stImageInfo.pBufAddr;
+			stDisplayInfo.nDataLen = stImageInfo.stFrameInfo.nFrameLen;
+			stDisplayInfo.nWidth = stImageInfo.stFrameInfo.nWidth;
+			stDisplayInfo.nHeight = stImageInfo.stFrameInfo.nHeight;
+			stDisplayInfo.enPixelType = stImageInfo.stFrameInfo.enPixelType;
+			m_pcMyCamera->DisplayOneFrame(&stDisplayInfo);//Set Display Window Handle
+
+			m_pcMyCamera->FreeImageBuffer(&stImageInfo);
+		}
+		else
+		{
+			if (MV_TRIGGER_MODE_ON == m_i32TriggerMode)
+			{
+				Sleep(5);
+			}
+		}
+	}
+
+	return MV_OK;
 }
 
 
@@ -213,6 +278,16 @@ HCURSOR CHikVisionCamViewerDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CHikVisionCamViewerDlg::OnClose()
+{
+	PostQuitMessage(0);
+	CloseDevice();
+
+	DeleteCriticalSection(&m_hSaveImageMux);
+	CDialog::OnClose();
+}
+
+
 void CHikVisionCamViewerDlg::ShowErrorMsg(CString csMessage, int i32ErrorNum)
 {
 	CString errorMsg;
@@ -271,10 +346,10 @@ void CHikVisionCamViewerDlg::EnableControls(bool bIsCameraReady)
 	GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->EnableWindow(m_bOpenDevice ? true : false);
 	GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow((m_bStartGrabbing && m_bSoftWareTriggerCheck && ((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->GetCheck()) ? TRUE : FALSE);
 
+	GetDlgItem(IDC_BTN_PNG)->EnableWindow(m_bStartGrabbing ? true : false);
+	GetDlgItem(IDC_BTN_JPG)->EnableWindow(m_bStartGrabbing ? true : false);
 	//GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
 	//GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-	//GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
-	//GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? true : false);
 }
 
 void CHikVisionCamViewerDlg::DisplayWindowInitial()
@@ -302,7 +377,7 @@ int CHikVisionCamViewerDlg::CloseDevice()
 
 	if (m_pcMyCamera)
 	{
-		m_pcMyCamera->Close();
+		m_pcMyCamera->Close();//MV_CC_CloseDevice,MV_CC_DestroyHandle
 		delete m_pcMyCamera;
 		m_pcMyCamera = NULL;
 	}
@@ -333,22 +408,477 @@ bool CHikVisionCamViewerDlg::RemoveCustomPixelFormats(enum MvGvspPixelType enPix
 	}
 }
 
-void CHikVisionCamViewerDlg::OnClose()
-{
-	PostQuitMessage(0);
-	CloseDevice();
 
-	DeleteCriticalSection(&m_hSaveImageMux);
-	CDialog::OnClose();
+void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
+{
+	CString strMsg;
+
+	//Clear Device List Information
+	m_cbCameraList.ResetContent();
+
+	//Device Information List Initialization
+	memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
+
+	// Enumerate all devices within subnet
+	int i32Ret = HikVisionCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);  // get device list (MV_CC_EnumDevices)
+	if (MV_OK != i32Ret)
+	{
+		return;
+	}
+
+	//Add value to the information list box and display
+	for (unsigned int i = 0; i < m_stDevList.nDeviceNum; i++)
+	{
+		MV_CC_DEVICE_INFO* pDeviceInfo = m_stDevList.pDeviceInfo[i];
+		if (NULL == pDeviceInfo)
+		{
+			continue;
+		}
+
+		wchar_t* pUserName = NULL;
+		if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
+		{
+			int nIp1 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
+			int nIp2 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
+			int nIp3 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
+			int nIp4 = (m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
+
+			if (strcmp("", (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName)) != 0)
+			{
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
+			}
+			else
+			{
+				char strUserName[256] = { 0 };
+				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stGigEInfo.chManufacturerName, pDeviceInfo->SpecialInfo.stGigEInfo.chModelName, pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber);
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
+			}
+
+			strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
+		}
+		else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
+		{
+			if (strcmp("", (char*)pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName) != 0)
+			{
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
+			}
+			else
+			{
+				char strUserName[256] = { 0 };
+				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stUsb3VInfo.chManufacturerName, pDeviceInfo->SpecialInfo.stUsb3VInfo.chModelName, pDeviceInfo->SpecialInfo.stUsb3VInfo.chSerialNumber);
+				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
+				pUserName = new wchar_t[dwLenUserName];
+				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
+			}
+
+			strMsg.Format(_T("[%d]UsbV3:  %s"), i, pUserName);
+		}
+		else
+		{
+			ShowErrorMsg(TEXT("Unknown device enumerated"), 0);
+		}
+
+		m_cbCameraList.AddString(strMsg);
+
+		if (pUserName)
+		{
+			delete[] pUserName;
+			pUserName = NULL;
+		}
+	}
+
+	if (0 == m_stDevList.nDeviceNum)
+	{
+		ShowErrorMsg(TEXT("No device"), 0);
+		return;
+	}
+
+	m_cbCameraList.SetCurSel(0);
+	EnableControls(true);
+
+	//TODO: 장치 접근 가능 여부 확인 ( MV_CC_IsDeviceAccessible)
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedCamOpen()
+{
+	if (true == m_bOpenDevice || NULL != m_pcMyCamera)
+	{
+		return;
+	}
+
+	UpdateData(TRUE);
+
+	int nIndex = m_i32DeviceCombo;
+	if ((nIndex < 0) | (nIndex >= MV_MAX_DEVICE_NUM))
+	{
+		ShowErrorMsg(TEXT("Please select device"), 0);
+		return;
+	}
+
+	if (NULL == m_stDevList.pDeviceInfo[nIndex])
+	{
+		ShowErrorMsg(TEXT("Device does not exist"), 0);
+		return;
+	}
+
+	m_pcMyCamera = new HikVisionCamera;//m_hDevHandle
+	if (NULL == m_pcMyCamera)
+	{
+		return;
+	}
+
+	int i32Ret = m_pcMyCamera->Open(m_stDevList.pDeviceInfo[nIndex]);//장치 핸들 생성 및 API를 사용하여 장치 연결 ( MV_CC_CreateHandle, MV_CC_OpenDevice)
+	if (MV_OK != i32Ret)
+	{//MV_CC_DestroyHandle
+		delete m_pcMyCamera;
+		m_pcMyCamera = NULL;
+		ShowErrorMsg(TEXT("Open FAIL!"), i32Ret);
+		return;
+	}
+
+	//TODO: khb
+	//장치 정보 가져오기 (MV_CC_GetDeviceInfo)
+	//최적 패킷 크기 확인 (MV_CC_GetOptimalPacketSize)
+
+	if (m_stDevList.pDeviceInfo[nIndex]->nTLayerType == MV_GIGE_DEVICE)
+	{
+		unsigned int nPacketSize = 0;
+		i32Ret = m_pcMyCamera->GetOptimalPacketSize(&nPacketSize);//Detection network optimal package size (It only works for the GigE camera)
+		if (i32Ret == MV_OK)
+		{
+			i32Ret = m_pcMyCamera->SetIntValue("GevSCPSPacketSize", nPacketSize);
+			if (i32Ret != MV_OK)
+			{
+				ShowErrorMsg(TEXT("Warning: Set Packet Size FAIL!!"), i32Ret);
+			}
+		}
+		else
+		{
+			ShowErrorMsg(TEXT("Warning: Get Packet Size FAIL!!"), i32Ret);
+		}
+	}
+
+	m_bOpenDevice = true;
+	EnableControls(true);
+
+	OnBnClickedGetParameterButton();
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedCamClose()
+{
+	CloseDevice();
+	EnableControls(true);
 }
 
 
+void CHikVisionCamViewerDlg::OnBnClickedCamStart()
+{
+	if (false == m_bOpenDevice)
+	{
+		AfxMessageBox(_T("The camera hasn't been opened yet."));
+		return;
+	}
+
+	if (NULL == m_pcMyCamera)
+	{
+		AfxMessageBox(_T("The camera hasn't been find. Faaaailllll"));
+		return;
+	}
+
+	if (true == m_bStartGrabbing)
+	{
+		AfxMessageBox(_T("The camera is already running."));
+		return;
+	}
+
+	memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
+	m_bThreadState = true;
+
+	unsigned int ui32ThreadID = 0;
+	m_hGrabThread = (void*)_beginthreadex(NULL, 0, GrabThread, this, 0, &ui32ThreadID);
+	if (NULL == m_hGrabThread)
+	{
+		m_bThreadState = FALSE;
+		ShowErrorMsg(TEXT("Create thread FAIL!"), 0);
+		return;
+	}
+
+	int i32Ret = m_pcMyCamera->StartGrabbing();//MV_CC_StartGrabbing
+	if (MV_OK != i32Ret)
+	{
+		m_bThreadState = FALSE;
+		ShowErrorMsg(TEXT("Start grabbing FAIL!"), i32Ret);
+		return;
+	}
+
+	m_bStartGrabbing = true;
+	EnableControls(true);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedCamPause()
+{
+	AfxMessageBox(_T("Camera has been paused."));
+	return;
+
+	/*if (false == m_bCameraStarted)
+	{
+		AfxMessageBox(_T("Camera already has been paused."));
+		return;
+	}
+
+	m_bCameraStarted = false;*/
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedCamStop()
+{
+	if (false == m_bOpenDevice)
+	{
+		AfxMessageBox(_T("The camera has already been stopped."));
+		return;
+	}
+
+	if (NULL == m_pcMyCamera)
+	{
+		AfxMessageBox(_T("The camera hasn't been found. Faaaailllll"));
+		return;
+	}
+
+	if (false == m_bStartGrabbing)
+	{
+		AfxMessageBox(_T("The camera is already running."));
+		return;
+	}
+
+	m_bThreadState = false;
+
+	if (m_hGrabThread)
+	{
+		WaitForSingleObject(m_hGrabThread, INFINITE);
+		CloseHandle(m_hGrabThread);
+		m_hGrabThread = NULL;
+	}
+
+	int i32Ret = m_pcMyCamera->StopGrabbing();//MV_CC_StopGrabbing
+	if (MV_OK != i32Ret)
+	{
+		ShowErrorMsg(TEXT("Stop grabbing FAIL!"), i32Ret);
+		return;
+	}
+
+	m_bStartGrabbing = false;
+	EnableControls(true);
+}
+
+
+
+void CHikVisionCamViewerDlg::OnBnClickedContinusModeRadio()
+{
+	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(TRUE);
+	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(FALSE);
+	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(FALSE);
+
+	m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
+	int nRet = SetTriggerMode();
+	if (MV_OK != nRet)
+	{
+		return;
+	}
+	GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(FALSE);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedTriggerModeRadio()
+{
+	UpdateData(TRUE);
+
+	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(FALSE);
+	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(TRUE);
+	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(TRUE);
+
+	m_i32TriggerMode = MV_TRIGGER_MODE_ON;
+	int nRet = SetTriggerMode();
+	if (MV_OK != nRet)
+	{
+		ShowErrorMsg(TEXT("Set Trigger Mode Fail"), nRet);
+		return;
+	}
+
+	if (m_bStartGrabbing == TRUE)
+	{
+		if (TRUE == m_bSoftWareTriggerCheck)
+		{
+			GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(TRUE);
+		}
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSoftwareTriggerCheck()
+{
+	UpdateData(TRUE);
+
+	int nRet = SetTriggerSource();
+	if (nRet != MV_OK)
+	{
+		return;
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSoftwareOnceButton()
+{
+	if (TRUE != m_bStartGrabbing)
+	{
+		return;
+	}
+
+	m_pcMyCamera->CommandExecute("TriggerSoftware");//MV_CC_SetCommandValue
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedGetParameterButton()
+{
+	int i32Ret = GetTriggerMode();
+	if (i32Ret != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Trigger Mode FAIL!"), i32Ret);
+	}
+
+	i32Ret = GetExposureTime();
+	if (i32Ret != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Exposure Time FAIL!"), i32Ret);
+	}
+
+	i32Ret = GetGain();
+	if (i32Ret != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Gain FAIL!"), i32Ret);
+	}
+
+	i32Ret = GetFrameRate();
+	if (i32Ret != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Frame Rate FAIL!"), i32Ret);
+	}
+
+	i32Ret = GetTriggerSource();
+	if (i32Ret != MV_OK)
+	{
+		ShowErrorMsg(TEXT("Get Trigger Source FAIL!"), i32Ret);
+	}
+
+	UpdateData(FALSE);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSetParameterButton()
+{
+	UpdateData(TRUE);
+
+	bool bIsSetSucceed = true;
+
+	int i32Ret = SetExposureTime();
+	if (i32Ret != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Exposure Time FAIL!"), i32Ret);
+	}
+
+	i32Ret = SetGain();
+	if (i32Ret != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Gain FAIL!"), i32Ret);
+	}
+
+	i32Ret = SetFrameRate();
+	if (i32Ret != MV_OK)
+	{
+		bIsSetSucceed = false;
+		ShowErrorMsg(TEXT("Set Frame Rate FAIL!"), i32Ret);
+	}
+
+	if (true == bIsSetSucceed)
+	{
+		ShowErrorMsg(TEXT("Set Parameter Succeed"), i32Ret);
+	}
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSaveJpgButton()
+{
+	int nRet = SaveImage(MV_Image_Jpeg);
+	if (MV_OK != nRet)
+	{
+		ShowErrorMsg(TEXT("Save jpg fail"), nRet);
+		return;
+	}
+	ShowErrorMsg(TEXT("Save jpg succeed"), nRet);
+}
+
+void CHikVisionCamViewerDlg::OnBnClickedSavePngButton()
+{
+	int nRet = SaveImage(MV_Image_Png);
+	if (MV_OK != nRet)
+	{
+		ShowErrorMsg(TEXT("Save png fail"), nRet);
+		return;
+	}
+	ShowErrorMsg(TEXT("Save png succeed"), nRet);
+}
+
+int CHikVisionCamViewerDlg::SaveImage(MV_SAVE_IAMGE_TYPE enSaveImageType)
+{
+	MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
+	memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
+
+	EnterCriticalSection(&m_hSaveImageMux);
+	if (m_pSaveImageBuf == NULL || m_stImageInfo.enPixelType == 0)
+	{
+		LeaveCriticalSection(&m_hSaveImageMux);
+		return MV_E_NODATA;
+	}
+
+	if (RemoveCustomPixelFormats(m_stImageInfo.enPixelType))
+	{
+		LeaveCriticalSection(&m_hSaveImageMux);
+		return MV_E_SUPPORT;
+	}
+
+	stSaveFileParam.enImageType = enSaveImageType; // Image format to save
+	stSaveFileParam.enPixelType = m_stImageInfo.enPixelType; // Camera pixel type
+	stSaveFileParam.nWidth = m_stImageInfo.nWidth; // Width
+	stSaveFileParam.nHeight = m_stImageInfo.nHeight; // Height
+	stSaveFileParam.nDataLen = m_stImageInfo.nFrameLen;
+	stSaveFileParam.pData = m_pSaveImageBuf;
+	stSaveFileParam.iMethodValue = 0;
+
+	// jpg image nQuality range is (50-99], png image nQuality range is [0-9]
+	if (MV_Image_Jpeg == stSaveFileParam.enImageType)
+	{
+		stSaveFileParam.nQuality = 80;
+		sprintf_s(stSaveFileParam.pImagePath, 256, "Image_w%d_h%d_fn%03d.jpg", stSaveFileParam.nWidth, stSaveFileParam.nHeight, m_stImageInfo.nFrameNum);
+	}
+	else if (MV_Image_Png == stSaveFileParam.enImageType)
+	{
+		stSaveFileParam.nQuality = 8;
+		sprintf_s(stSaveFileParam.pImagePath, 256, "Image_w%d_h%d_fn%03d.png", stSaveFileParam.nWidth, stSaveFileParam.nHeight, m_stImageInfo.nFrameNum);
+	}
+
+	int nRet = m_pcMyCamera->SaveImageToFile(&stSaveFileParam);
+	LeaveCriticalSection(&m_hSaveImageMux);
+
+	return nRet;
+}
+
+#pragma region Parameters
 
 int CHikVisionCamViewerDlg::GetTriggerMode()
 {
 	MVCC_ENUMVALUE stEnumValue = { 0 };
 
-	int i32Ret = m_pcMyCamera->GetEnumValue("TriggerMode", &stEnumValue);
+	int i32Ret = m_pcMyCamera->GetEnumValue("TriggerMode", &stEnumValue);//MV_CC_GetEnumValue
 	if (MV_OK != i32Ret)
 	{
 		return i32Ret;
@@ -359,13 +889,11 @@ int CHikVisionCamViewerDlg::GetTriggerMode()
 	if (MV_TRIGGER_MODE_ON == m_i32TriggerMode)
 	{
 		OnBnClickedTriggerModeRadio();
-		//ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_ON] OnBnClickedTriggerModeRadio"), 0);
 	}
 	else
 	{
 		m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
 		OnBnClickedContinusModeRadio();
-		//ShowErrorMsg(TEXT("[MV_TRIGGER_MODE_OFF] OnBnClickedContinusModeRadio"), 0);
 	}
 
 	return MV_OK;
@@ -503,456 +1031,4 @@ int CHikVisionCamViewerDlg::SetTriggerSource()
 	return i32Ret;
 }
 
-
-
-int CHikVisionCamViewerDlg::GrabThreadProcess()
-{
-	MV_FRAME_OUT stImageInfo = { 0 };
-	MV_DISPLAY_FRAME_INFO stDisplayInfo = { 0 };
-	int i32Ret = MV_OK;
-
-	while (m_bThreadState)
-	{
-		i32Ret = m_pcMyCamera->GetImageBuffer(&stImageInfo, 1000);
-		if (i32Ret == MV_OK)
-		{
-			EnterCriticalSection(&m_hSaveImageMux);
-			if (NULL == m_pSaveImageBuf || stImageInfo.stFrameInfo.nFrameLen > m_ui32SaveImageBufSize)
-			{
-				if (m_pSaveImageBuf)
-				{
-					free(m_pSaveImageBuf);
-					m_pSaveImageBuf = NULL;
-				}
-
-				m_pSaveImageBuf = (unsigned char*)malloc(sizeof(unsigned char) * stImageInfo.stFrameInfo.nFrameLen);
-				if (m_pSaveImageBuf == NULL)
-				{
-					LeaveCriticalSection(&m_hSaveImageMux);
-					return 0;
-				}
-				m_ui32SaveImageBufSize = stImageInfo.stFrameInfo.nFrameLen;
-			}
-			memcpy(m_pSaveImageBuf, stImageInfo.pBufAddr, stImageInfo.stFrameInfo.nFrameLen);
-			memcpy(&m_stImageInfo, &(stImageInfo.stFrameInfo), sizeof(MV_FRAME_OUT_INFO_EX));
-			LeaveCriticalSection(&m_hSaveImageMux);
-
-			if (RemoveCustomPixelFormats(stImageInfo.stFrameInfo.enPixelType))
-			{
-				m_pcMyCamera->FreeImageBuffer(&stImageInfo);
-				continue;
-			}
-
-			stDisplayInfo.hWnd = m_hwndDisplay;
-			stDisplayInfo.pData = stImageInfo.pBufAddr;
-			stDisplayInfo.nDataLen = stImageInfo.stFrameInfo.nFrameLen;
-			stDisplayInfo.nWidth = stImageInfo.stFrameInfo.nWidth;
-			stDisplayInfo.nHeight = stImageInfo.stFrameInfo.nHeight;
-			stDisplayInfo.enPixelType = stImageInfo.stFrameInfo.enPixelType;
-			m_pcMyCamera->DisplayOneFrame(&stDisplayInfo);
-
-			m_pcMyCamera->FreeImageBuffer(&stImageInfo);
-		}
-		else
-		{
-			if (MV_TRIGGER_MODE_ON == m_i32TriggerMode)
-			{
-				Sleep(5);
-			}
-		}
-	}
-
-	return MV_OK;
-}
-
-
-void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
-{
-	CString strMsg;
-
-	//Clear Device List Information
-	m_cbCameraList.ResetContent();
-
-	//Device Information List Initialization
-	memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
-
-	// Enumerate all devices within subnet
-	int i32Ret = HikVisionCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);
-	if (MV_OK != i32Ret)
-	{
-		return;
-	}
-
-	//Add value to the information list box and display
-	for (unsigned int i = 0; i < m_stDevList.nDeviceNum; i++)
-	{
-		MV_CC_DEVICE_INFO* pDeviceInfo = m_stDevList.pDeviceInfo[i];
-		if (NULL == pDeviceInfo)
-		{
-			continue;
-		}
-
-		wchar_t* pUserName = NULL;
-		if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
-		{
-			int nIp1 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
-			int nIp2 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
-			int nIp3 = ((m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
-			int nIp4 = (m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
-
-			if (strcmp("", (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName)) != 0)
-			{
-				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, NULL, 0);
-				pUserName = new wchar_t[dwLenUserName];
-				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
-			}
-			else
-			{
-				char strUserName[256] = { 0 };
-				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stGigEInfo.chManufacturerName, pDeviceInfo->SpecialInfo.stGigEInfo.chModelName, pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber);
-				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
-				pUserName = new wchar_t[dwLenUserName];
-				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
-			}
-
-			strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
-		}
-		else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
-		{
-			if (strcmp("", (char*)pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName) != 0)
-			{
-				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, NULL, 0);
-				pUserName = new wchar_t[dwLenUserName];
-				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(pDeviceInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName), -1, pUserName, dwLenUserName);
-			}
-			else
-			{
-				char strUserName[256] = { 0 };
-				sprintf_s(strUserName, 256, "%s %s (%s)", pDeviceInfo->SpecialInfo.stUsb3VInfo.chManufacturerName, pDeviceInfo->SpecialInfo.stUsb3VInfo.chModelName, pDeviceInfo->SpecialInfo.stUsb3VInfo.chSerialNumber);
-				DWORD dwLenUserName = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, NULL, 0);
-				pUserName = new wchar_t[dwLenUserName];
-				MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
-			}
-
-			strMsg.Format(_T("[%d]UsbV3:  %s"), i, pUserName);
-		}
-		else
-		{
-			ShowErrorMsg(TEXT("Unknown device enumerated"), 0);
-		}
-
-		m_cbCameraList.AddString(strMsg);
-
-		if (pUserName)
-		{
-			delete[] pUserName;
-			pUserName = NULL;
-		}
-	}
-
-	if (0 == m_stDevList.nDeviceNum)
-	{
-		ShowErrorMsg(TEXT("No device"), 0);
-		return;
-	}
-
-	m_cbCameraList.SetCurSel(0);
-	EnableControls(true);//	GetDlgItem(IDC_BTN_CAMOPEN)->EnableWindow(TRUE); //m_btnCameraStart.EnableWindow(TRUE);
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedCamOpen()
-{
-	if (true == m_bOpenDevice || NULL != m_pcMyCamera)
-	{
-		return;
-	}
-
-	UpdateData(TRUE);
-
-	int nIndex = m_i32DeviceCombo;
-	if ((nIndex < 0) | (nIndex >= MV_MAX_DEVICE_NUM))
-	{
-		ShowErrorMsg(TEXT("Please select device"), 0);
-		return;
-	}
-
-	if (NULL == m_stDevList.pDeviceInfo[nIndex])
-	{
-		ShowErrorMsg(TEXT("Device does not exist"), 0);
-		return;
-	}
-
-	m_pcMyCamera = new HikVisionCamera;
-	if (NULL == m_pcMyCamera)
-	{
-		return;
-	}
-
-	int i32Ret = m_pcMyCamera->Open(m_stDevList.pDeviceInfo[nIndex]);
-	if (MV_OK != i32Ret)
-	{
-		delete m_pcMyCamera;
-		m_pcMyCamera = NULL;
-		ShowErrorMsg(TEXT("Open FAIL!"), i32Ret);
-		return;
-	}
-
-
-	// Detection network optimal package size(It only works for the GigE camera)
-	if (m_stDevList.pDeviceInfo[nIndex]->nTLayerType == MV_GIGE_DEVICE)
-	{
-		unsigned int nPacketSize = 0;
-		i32Ret = m_pcMyCamera->GetOptimalPacketSize(&nPacketSize);
-		if (i32Ret == MV_OK)
-		{
-			i32Ret = m_pcMyCamera->SetIntValue("GevSCPSPacketSize", nPacketSize);
-			if (i32Ret != MV_OK)
-			{
-				ShowErrorMsg(TEXT("Warning: Set Packet Size FAIL!!"), i32Ret);
-			}
-		}
-		else
-		{
-			ShowErrorMsg(TEXT("Warning: Get Packet Size FAIL!!"), i32Ret);
-		}
-	}
-
-	m_bOpenDevice = true;
-	EnableControls(true);
-
-	OnBnClickedGetParameterButton();
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedCamClose()
-{
-	CloseDevice();
-	EnableControls(true);
-}
-
-
-void CHikVisionCamViewerDlg::OnBnClickedContinusModeRadio()
-{
-	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(TRUE);
-	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(FALSE);
-	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(FALSE);
-
-	m_i32TriggerMode = MV_TRIGGER_MODE_OFF;
-	int nRet = SetTriggerMode();
-	if (MV_OK != nRet)
-	{
-		return;
-	}
-	GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(FALSE);
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedTriggerModeRadio()
-{
-	UpdateData(TRUE);
-
-	((CButton*)GetDlgItem(IDC_RADIO_CONTINUS))->SetCheck(FALSE);
-	((CButton*)GetDlgItem(IDC_RADIO_TRIGGER))->SetCheck(TRUE);
-	((CButton*)GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK))->EnableWindow(TRUE);
-
-	m_i32TriggerMode = MV_TRIGGER_MODE_ON;
-	int nRet = SetTriggerMode();
-	if (MV_OK != nRet)
-	{
-		ShowErrorMsg(TEXT("Set Trigger Mode Fail"), nRet);
-		return;
-	}
-
-	if (m_bStartGrabbing == TRUE)
-	{
-		if (TRUE == m_bSoftWareTriggerCheck)
-		{
-			GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow(TRUE);
-		}
-	}
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedSoftwareTriggerCheck()
-{
-	UpdateData(TRUE);
-
-	int nRet = SetTriggerSource();
-	if (nRet != MV_OK)
-	{
-		return;
-	}
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedSoftwareOnceButton()
-{
-	if (TRUE != m_bStartGrabbing)
-	{
-		return;
-	}
-
-	m_pcMyCamera->CommandExecute("TriggerSoftware");
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedCamStart()
-{
-	if (false == m_bOpenDevice)
-	{
-		AfxMessageBox(_T("The camera hasn't been opened yet."));
-		return;
-	}
-
-	if (NULL == m_pcMyCamera)
-	{
-		AfxMessageBox(_T("The camera hasn't been find. Faaaailllll"));
-		return;
-	}
-
-	if (true == m_bStartGrabbing)
-	{
-		AfxMessageBox(_T("The camera is already running."));
-		return;
-	}
-
-	memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
-	m_bThreadState = true;
-
-	unsigned int ui32ThreadID = 0;
-	m_hGrabThread = (void*)_beginthreadex(NULL, 0, GrabThread, this, 0, &ui32ThreadID);
-	if (NULL == m_hGrabThread)
-	{
-		m_bThreadState = FALSE;
-		ShowErrorMsg(TEXT("Create thread FAIL!"), 0);
-		return;
-	}
-
-	int i32Ret = m_pcMyCamera->StartGrabbing();
-	if (MV_OK != i32Ret)
-	{
-		m_bThreadState = FALSE;
-		ShowErrorMsg(TEXT("Start grabbing FAIL!"), i32Ret);
-		return;
-	}
-
-	m_bStartGrabbing = true;
-	EnableControls(true);
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedCamPause()
-{
-	AfxMessageBox(_T("Camera has been paused."));
-	return;
-
-	/*if (false == m_bCameraStarted)
-	{
-		AfxMessageBox(_T("Camera already has been paused."));
-		return;
-	}
-
-	m_bCameraStarted = false;*/
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedCamStop()
-{
-	if (false == m_bOpenDevice)
-	{
-		AfxMessageBox(_T("The camera has already been stopped."));
-		return;
-	}
-
-	if (NULL == m_pcMyCamera)
-	{
-		AfxMessageBox(_T("The camera hasn't been found. Faaaailllll"));
-		return;
-	}
-
-	if (false == m_bStartGrabbing)
-	{
-		AfxMessageBox(_T("The camera is already running."));
-		return;
-	}
-
-	m_bThreadState = false;
-
-	if (m_hGrabThread)
-	{
-		WaitForSingleObject(m_hGrabThread, INFINITE);
-		CloseHandle(m_hGrabThread);
-		m_hGrabThread = NULL;
-	}
-
-	int i32Ret = m_pcMyCamera->StopGrabbing();
-	if (MV_OK != i32Ret)
-	{
-		ShowErrorMsg(TEXT("Stop grabbing FAIL!"), i32Ret);
-		return;
-	}
-
-	m_bStartGrabbing = false;
-	EnableControls(true);
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedGetParameterButton()
-{
-	int i32Ret = GetTriggerMode();
-	if (i32Ret != MV_OK)
-	{
-		ShowErrorMsg(TEXT("Get Trigger Mode FAIL!"), i32Ret);
-	}
-
-	i32Ret = GetExposureTime();
-	if (i32Ret != MV_OK)
-	{
-		ShowErrorMsg(TEXT("Get Exposure Time FAIL!"), i32Ret);
-	}
-
-	i32Ret = GetGain();
-	if (i32Ret != MV_OK)
-	{
-		ShowErrorMsg(TEXT("Get Gain FAIL!"), i32Ret);
-	}
-
-	i32Ret = GetFrameRate();
-	if (i32Ret != MV_OK)
-	{
-		ShowErrorMsg(TEXT("Get Frame Rate FAIL!"), i32Ret);
-	}
-
-	i32Ret = GetTriggerSource();
-	if (i32Ret != MV_OK)
-	{
-		ShowErrorMsg(TEXT("Get Trigger Source FAIL!"), i32Ret);
-	}
-
-	UpdateData(FALSE);
-}
-
-void CHikVisionCamViewerDlg::OnBnClickedSetParameterButton()
-{
-	UpdateData(TRUE);
-
-	bool bIsSetSucceed = true;
-
-	int i32Ret = SetExposureTime();
-	if (i32Ret != MV_OK)
-	{
-		bIsSetSucceed = false;
-		ShowErrorMsg(TEXT("Set Exposure Time FAIL!"), i32Ret);
-	}
-
-	i32Ret = SetGain();
-	if (i32Ret != MV_OK)
-	{
-		bIsSetSucceed = false;
-		ShowErrorMsg(TEXT("Set Gain FAIL!"), i32Ret);
-	}
-
-	i32Ret = SetFrameRate();
-	if (i32Ret != MV_OK)
-	{
-		bIsSetSucceed = false;
-		ShowErrorMsg(TEXT("Set Frame Rate FAIL!"), i32Ret);
-	}
-
-	if (true == bIsSetSucceed)
-	{
-		ShowErrorMsg(TEXT("Set Parameter Succeed"), i32Ret);
-	}
-}
+#pragma endregion Parameters
