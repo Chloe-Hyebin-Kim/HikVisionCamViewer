@@ -88,8 +88,6 @@ private:
 	bool RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat);
 
 public:
-	int GrabThreadProcess();
-
 	int ThreadFunc(int nCurCameraIndex);
 
 private:
@@ -111,12 +109,13 @@ private:
 
 private:
 	int m_i32ZoomInIndex;
+	int m_i32SaveIndex;
 
 	int m_i32DeviceCombo; //m_cbCameraList - Enumerated device
 
 	bool m_bOpenDevice;
 	bool m_bStartGrabbing;
-	bool m_bThreadState;
+
 	BOOL m_bSoftWareTriggerCheck;
 
 	int m_i32TriggerMode;
@@ -126,23 +125,9 @@ private:
 	double m_f64FrameRateEdit;
 
 
-	MV_CC_DEVICE_INFO_LIST m_stDevList; //Device Information List ( Online Device Number,Support up to 256 devices)
-
-	////////////////////////////////
-
-	//HWND m_hwndDisplay; //Window display Handle
-	//HikVisionCamera* m_pcMyCamera; // HikVisionCamera packed commonly used interface
-	//
-	//void* m_hGrabThread; //Grab thread handle
-	//
-	//CRITICAL_SECTION m_hSaveImageMux;
-	//MV_FRAME_OUT_INFO_EX m_stImageInfo;//Output Frame Information
-	//unsigned char* m_pSaveImageBuf;
-	//unsigned int m_ui32SaveImageBufSize;
-
-	////////////////////////////////
-
 	void* m_hGrabThreadArr[MAX_DEVICE_NUM]; //Grab thread handle
+
+	MV_CC_DEVICE_INFO_LIST m_stDevList; //Device Information List ( Online Device Number,Support up to 256 devices)
 
 	CRITICAL_SECTION m_hSaveImageMuxArr[MAX_DEVICE_NUM];
 	MV_FRAME_OUT_INFO_EX m_stImageInfoArr[MAX_DEVICE_NUM]; //Output Frame Information
