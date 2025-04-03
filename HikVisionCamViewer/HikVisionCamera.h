@@ -1,7 +1,6 @@
 #pragma once
 
 #include "MvCameraControl.h"
-#include <string.h>
 
 #ifndef MV_NULL
 #define MV_NULL    0
@@ -24,6 +23,9 @@ public:
 	static bool IsDeviceAccessible(MV_CC_DEVICE_INFO* pstDevInfo, unsigned int nAccessMode);
 
 	int Open(MV_CC_DEVICE_INFO* pstDeviceInfo);
+
+	//int CreateHandle(MV_CC_DEVICE_INFO* pstDeviceInfo);
+	//int OpenDevice(MV_CC_DEVICE_INFO* pstDeviceInfo);
 
 	int Close();
 

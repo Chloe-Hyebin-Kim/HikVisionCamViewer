@@ -9,6 +9,94 @@
 #define new DEBUG_NEW
 #endif
 
+enum CamVendor
+{
+	CamVendor_NONE = 0,
+	CamVendor_HKVision = 1,
+	CamVendor_VWorks = 2,
+};
+
+//typedef enum {
+//	GZ_CAMVENDOR_NONE,
+//	GZ_CAMVENDOR_HIKVISION,
+//	GZ_CAMVENDOR_HIKVISION_SONY,
+//	GZ_CAMVENDOR_VIEWORKS,
+//	GZ_CAMVENDOR_EMULATOR,
+//	GZ_CAMVENDOR_MAX
+//} eGzCamVendor;
+
+
+//int GzCamDetect(void)
+//{
+//	int nRet = MV_OK;
+//
+//	MV_CC_DEVICE_INFO_LIST stDeviceList;
+//	memset(&stDeviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
+//
+//
+//	nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE, &stDeviceList); // GigE 디바이스만 찾기
+//	if (MV_OK != nRet)
+//	{
+//		printf("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
+//		return GZ_CAMVENDOR_MAX;
+//	}
+//
+//	CString strVendor;
+//
+//	if (stDeviceList.nDeviceNum > 0)
+//	{
+//		for (int i = 0; i < 1/*stDeviceList.nDeviceNum*/; i++)
+//		{
+//			if (stDeviceList.pDeviceInfo[i]->nTLayerType == MV_GIGE_DEVICE)
+//			{
+//				strVendor = stDeviceList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.chManufacturerName;
+//			}
+//		}
+//	}
+//	else
+//	{
+//		printf("Find No GIGE Devices!\n");
+//		return GZ_CAMVENDOR_MAX;
+//	}
+//
+//	if (strVendor.Compare(_T("VIEWORKS")) == 0)
+//		return GZ_CAMVENDOR_VIEWORKS;
+//	else if (strVendor.Compare(_T("Golfzon")) == 0)
+//		return GZ_CAMVENDOR_HIKVISION;
+//	else if (strVendor.Compare(_T("Golfzon2")) == 0)
+//		return GZ_CAMVENDOR_HIKVISION_SONY;
+//	else
+//		return GZ_CAMVENDOR_MAX;
+//}
+
+int CamVendorSelector(void)
+{
+	int CamVendor = 0;
+	{
+		HMODULE hCamDetect = LoadLibrary(_T("NGSCamDetecter.dll"));
+
+		if (hCamDetect)
+		{
+			typedef int (*fpCamDetect)(void);
+			fpCamDetect GzCamDetect = (fpCamDetect)GetProcAddress(hCamDetect, "GzCamDetect");
+			CamVendor = GzCamDetect();
+			FreeLibrary(hCamDetect);
+		}
+		else
+		{
+			return CamVendor_VWorks;
+		}
+
+		if (CamVendor == 1 || CamVendor == 2)
+			return CamVendor_HKVision;
+
+		if (CamVendor == 3)
+			return CamVendor_VWorks;
+	}
+
+	return CamVendor_VWorks;
+}
+
 // CAboutDlg dialog used for App About
 #pragma region CAboutDlg
 
@@ -172,16 +260,17 @@ unsigned int    __stdcall   WorkThread(void* pUser)
 
 int CHikVisionCamViewerDlg::ThreadFunc(int nCurCameraIndex)
 {
+	//TODO:  콜백 기반 구조로 변경 ( 현재 타이밍 제어를 하며 직접 MV_CC_GetImageBuffer를 반복 호출 하는 구조임)
 	if (m_pcMyCameraArr[nCurCameraIndex])
 	{
 		MV_FRAME_OUT stImageOut = { 0 };
 		MV_DISPLAY_FRAME_INFO stDisplayInfo = { 0 };
 		while (m_bStartGrabbing)
 		{
-			int nRet = m_pcMyCameraArr[nCurCameraIndex]->GetImageBuffer(&stImageOut, 1000);
+			//주의!!!!! MV_CC_GetImageBuffer는 MV_CC_FreeImageBuffer와 반드시 쌍으로 사용해야 함!!!
+			int nRet = m_pcMyCameraArr[nCurCameraIndex]->GetImageBuffer(&stImageOut, 1000);//SDK에서 스트림 버퍼를 자동 관리
 			if (nRet == MV_OK)
 			{
-				//痰黨괏닸暠튬
 				EnterCriticalSection(&m_hSaveImageMuxArr[nCurCameraIndex]);
 				if (NULL == m_pSaveImageBufArr[nCurCameraIndex] || stImageOut.stFrameInfo.nFrameLen > m_ui32SaveImageBufSizeArr[nCurCameraIndex])
 				{
@@ -216,6 +305,7 @@ int CHikVisionCamViewerDlg::ThreadFunc(int nCurCameraIndex)
 					PrintMessage("Display one frame fail! DevIndex[%d], nRet[%#x]\r\n", nCurCameraIndex + 1, nRet);
 				}
 
+				//주의!!!!! MV_CC_GetImageBuffer는 MV_CC_FreeImageBuffer와 반드시 쌍으로 사용해야 함!!!
 				nRet = m_pcMyCameraArr[nCurCameraIndex]->FreeImageBuffer(&stImageOut);
 				if (MV_OK != nRet)
 				{
@@ -311,6 +401,86 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
 
+	//Select CamVendor
+	int CamVendor = CamVendor_NONE;
+	HMODULE hCamDetect = LoadLibrary(_T("NGSCamDetecter.dll"));
+
+	if (hCamDetect)
+	{
+		typedef int (*fpCamDetect)(void);
+		fpCamDetect GzCamDetect = (fpCamDetect)GetProcAddress(hCamDetect, "GzCamDetect");
+		CamVendor = GzCamDetect();
+		FreeLibrary(hCamDetect);
+	}
+	else
+	{
+		CamVendor = CamVendor_VWorks;
+	}
+
+	//Load Vendor Library "~.dll"
+	m_hCamLib = 0;
+
+	if (CamVendor == 1 || CamVendor == 2)
+	{
+		CamVendor = CamVendor_HKVision;
+
+		m_hCamLib = LoadLibrary(L"NGSCamLinkDLLHV.dll");
+		if (!m_hCamLib)
+		{
+			memset(&m_CamLinkPtr, 0, sizeof(m_CamLinkPtr));
+
+			MessageBox(L"NGSCamLinkDLLHV.dll을 찾을 수 없습니다.");
+			exit(0);
+			return false;
+		}
+	}
+	else if (CamVendor == 3)
+	{
+		CamVendor = CamVendor_VWorks;
+
+		m_hCamLib = LoadLibrary(L"NGSCamLinkDLLVW.dll");
+		if (!m_hCamLib)
+		{
+			memset(&m_CamLinkPtr, 0, sizeof(m_CamLinkPtr));
+
+			MessageBox(L"NGSCamLinkDLLVW.dll을 찾을 수 없습니다.");
+			exit(0);
+			return false;
+		}
+	}
+	else if (CamVendor == CamVendor_NONE)
+	{
+		MessageBox(L"연결된 카메라를 찾을 수 없습니다.");
+		exit(0);
+		return false;
+	}
+	else
+	{
+		MessageBox(L"NGSCamDetecter.dll을 찾을 수 없습니다.");
+		exit(0);
+		return false;
+	}
+
+
+	m_CamLinkPtr.GetVender = (fpGetVender)GetProcAddress(m_hCamLib, "GzCamLink_GetVender");
+	m_CamLinkPtr.InitDevice = (fpInitDevice)GetProcAddress(m_hCamLib, "GzCamLink_InitDevice");
+	m_CamLinkPtr.StartDevice = (fpStartDevice)GetProcAddress(m_hCamLib, "GzCamLink_StartDevice");
+	m_CamLinkPtr.StopDevice = (fpStopDevice)GetProcAddress(m_hCamLib, "GzCamLink_StopDevice");
+	m_CamLinkPtr.ReleaseDevice = (fpReleaseDevice)GetProcAddress(m_hCamLib, "GzCamLink_ReleaseDevice");
+
+	m_CamLinkPtr.GetFeatureValueINT = (fpGetFeatureValueINT)GetProcAddress(m_hCamLib, "GzCamLink_GetFeatureValueINT");
+	m_CamLinkPtr.GetFeatureValueDWORD = (fpGetFeatureValueDWORD)GetProcAddress(m_hCamLib, "GzCamLink_GetFeatureValueDWORD");
+	m_CamLinkPtr.GetFeatureValueSTR = (fpGetFeatureValueSTR)GetProcAddress(m_hCamLib, "GzCamLink_GetFeatureValueSTR");
+	m_CamLinkPtr.GetFeatureValueFLOAT = (fpGetFeatureValueFLOAT)GetProcAddress(m_hCamLib, "GzCamLink_GetFeatureValueFLOAT");
+	m_CamLinkPtr.SetFeatureValueINT = (fpSetFeatureValueINT)GetProcAddress(m_hCamLib, "GzCamLink_SetFeatureValueINT");
+	m_CamLinkPtr.SetFeatureValueDWORD = (fpSetFeatureValueDWORD)GetProcAddress(m_hCamLib, "GzCamLink_SetFeatureValueDWORD");
+	m_CamLinkPtr.SetFeatureValueSTR = (fpSetFeatureValueSTR)GetProcAddress(m_hCamLib, "GzCamLink_SetFeatureValueSTR");
+	m_CamLinkPtr.SetFeatureValueFLOAT = (fpSetFeatureValueFLOAT)GetProcAddress(m_hCamLib, "GzCamLink_SetFeatureValueFLOAT");
+
+	m_CamLinkPtr.GetBufferPointer = (fpGetBufferPointer)GetProcAddress(m_hCamLib, "GzCamLink_GetBufferPointer");
+
+
+
 	//DisplayWindowInitial();
 	OnBnClickedmCameraSearch();
 	for (unsigned int i = 0; i < MAX_DEVICE_NUM; i++)
@@ -389,6 +559,35 @@ void CHikVisionCamViewerDlg::OnClose()
 
 	m_bOpenDevice = FALSE;
 	CDialog::OnClose();
+}
+
+bool CHikVisionCamViewerDlg::PrintDeviceInfo(MV_CC_DEVICE_INFO* pstMVDevInfo)
+{
+	if (NULL == pstMVDevInfo)
+	{
+		printf("The Pointer of pstMVDevInfo is NULL!\n");
+		return false;
+	}
+
+	if (pstMVDevInfo->nTLayerType == MV_GIGE_DEVICE)
+	{
+		int nIp1 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
+		int nIp2 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
+		int nIp3 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
+		int nIp4 = (pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
+		//Print current ip and user defined name
+		printf("CurrentIp: %d.%d.%d.%d\n", nIp1, nIp2, nIp3, nIp4);
+		printf("UserDefinedName: %s\n\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName);
+	}
+	else if (pstMVDevInfo->nTLayerType == MV_USB_DEVICE)
+	{
+		printf("UserDefinedName: %s\n\n", pstMVDevInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName);
+	}
+	else
+	{
+		printf("Not support.\n");
+	}
+	return true;
 }
 
 void CHikVisionCamViewerDlg::PrintMessage(const char* pszFormat, ...)
@@ -573,7 +772,7 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 	int i32Ret = HikVisionCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);  // get device list (MV_CC_EnumDevices)
 	if ((MV_OK != i32Ret) || (m_stDevList.nDeviceNum == 0))
 	{
-		PrintMessage("[OnBnClickedmCameraSearch] Find no device!\r\n");
+		PrintMessage("[OnBnClickedmCameraSearch] Find any device!\r\n");
 		return;
 	}
 
@@ -587,6 +786,8 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 
 		if (i < m_stDevList.nDeviceNum)
 		{
+			//TODO: 장치 접근 가능 여부 확인 ( MV_CC_IsDeviceAccessible)
+
 			MV_CC_DEVICE_INFO* pDeviceInfo = m_stDevList.pDeviceInfo[i];
 
 			if (MV_GIGE_DEVICE == pDeviceInfo->nTLayerType)
@@ -654,8 +855,6 @@ void CHikVisionCamViewerDlg::OnBnClickedmCameraSearch()
 	UpdateData(FALSE);
 
 	EnableControls(true);
-
-	//TODO: 장치 접근 가능 여부 확인 ( MV_CC_IsDeviceAccessible)
 }
 
 void CHikVisionCamViewerDlg::OnBnClickedCamOpen()
@@ -692,6 +891,8 @@ void CHikVisionCamViewerDlg::OnBnClickedCamOpen()
 			}
 			else
 			{
+				//TODO: 콜백 등록...
+
 				m_bOpenDevice = TRUE;
 
 				PrintMessage("[OnBnClickedCamOpen] Open device! - %s\r\n", m_stDevList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.chUserDefinedName);

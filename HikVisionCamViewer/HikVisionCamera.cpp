@@ -1,5 +1,6 @@
 #include "HikVisionCamera.h"
-
+#include <stdio.h>
+#include <string.h>
 
 HikVisionCamera::HikVisionCamera()
 {
@@ -28,6 +29,46 @@ bool HikVisionCamera::IsDeviceAccessible(MV_CC_DEVICE_INFO* pstDevInfo, unsigned
 {
 	return MV_CC_IsDeviceAccessible(pstDevInfo, nAccessMode);
 }
+
+
+
+
+
+
+//int HikVisionCamera::CreateHandle(MV_CC_DEVICE_INFO* pstDeviceInfo)
+//{
+//	int nRet = -1;
+//	m_hDevHandle = NULL;
+//
+//	//Enumerate all the corresponding devices of the specified transport protocols within the subnet.
+//	unsigned int nTLayerType = MV_GIGE_DEVICE | MV_USB_DEVICE;
+//	MV_CC_DEVICE_INFO_LIST m_stDevList = { 0 };
+//	int nRet = MV_CC_EnumDevices(nTLayerType, &m_stDevList);
+//	if (MV_OK != nRet)
+//	{
+//		printf("error: EnumDevices fail [%x]\n", nRet);
+//		return;
+//	}
+//
+//	int i = 0;
+//	if (m_stDevList.nDeviceNum == 0)
+//	{
+//		printf("no camera found!\n");
+//		return;
+//	}
+//
+//	//Select the searched first online device, create a device handle
+//	int nDeviceIndex = 0;
+//	MV_CC_DEVICE_INFO pstDeviceInfo = { 0 };
+//	memcpy(&pstDeviceInfo, m_stDevList.pDeviceInfo[nDeviceIndex], sizeof(MV_CC_DEVICE_INFO));
+//	nRet = MV_CC_CreateHandle(&m_hDevHandle, pstDeviceInfo);
+//	if (MV_OK != nRet)
+//	{
+//		printf("error: CreateHandle fail [%x]\n", nRet);
+//		return;
+//	}
+//}
+
 
 int HikVisionCamera::Open(MV_CC_DEVICE_INFO* pstDeviceInfo)
 {
@@ -250,7 +291,15 @@ int HikVisionCamera::RegisterExceptionCallBack(void(__stdcall* cbException)(unsi
 
 int HikVisionCamera::RegisterEventCallBack(const char* pEventName, void(__stdcall* cbEvent)(MV_EVENT_OUT_INFO* pEventInfo, void* pUser), void* pUser)
 {
-	return MV_CC_RegisterEventCallBackEx(m_hDevHandle, pEventName, cbEvent, pUser);
+	//return MV_CC_RegisterEventCallBackEx(m_hDevHandle, pEventName, cbEvent, pUser);
+
+	int nRet = MV_CC_RegisterEventCallBackEx(m_hDevHandle, pEventName, cbEvent, pUser);
+	if (MV_OK != nRet)
+	{
+		printf("Register Event CallBack fail[%x]\n", nRet);
+	}
+
+	return nRet;
 }
 
 int HikVisionCamera::ForceIp(unsigned int nIP, unsigned int nSubNetMask, unsigned int nDefaultGateWay)

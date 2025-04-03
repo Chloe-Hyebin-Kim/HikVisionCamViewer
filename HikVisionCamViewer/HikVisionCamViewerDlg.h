@@ -3,6 +3,8 @@
 
 #include "HikVisionCamera.h"
 
+#include "GzCamLinkHeader.h"
+
 #define WM_TIMER_GRAB_INFO 1
 #define MAX_DEVICE_NUM 4
 
@@ -64,6 +66,8 @@ private:
 	/*** Log ***/
 	void ShowErrorMsg(CString csMessage, int i32ErrorNum);
 	void PrintMessage(const char* pszFormat, ...);
+	bool PrintDeviceInfo(MV_CC_DEVICE_INFO* pstMVDevInfo);
+
 
 	/*** Window initialization ***/
 	void DisplayWindowInitial();
@@ -142,4 +146,10 @@ public:
 	HikVisionCamera* m_pcMyCameraArr[MAX_DEVICE_NUM]; // HikVisionCamera packed commonly used interface
 	HWND m_hwndDisplayArr[MAX_DEVICE_NUM]; //Window display Handle
 	CRect m_hwndRectArr[MAX_DEVICE_NUM];
+
+
+	/////////////////////////////////////////////////////
+	//LoadLibrary
+	GzCamLinkPointer m_CamLinkPtr;
+	HMODULE m_hCamLib;
 };
