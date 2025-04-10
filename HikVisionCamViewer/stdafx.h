@@ -35,3 +35,11 @@
 #include <algorithm>
 #include <stdio.h>
 #include <ctype.h>
+
+
+
+#define WM_TIMER_GRAB_INFO 1
+#define MAX_DEVICE_NUM 4
+
+#define CAMERA_WIDTH	640
+#define CAMERA_HEIGHT	480

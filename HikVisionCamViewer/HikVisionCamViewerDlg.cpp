@@ -403,12 +403,11 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 
 	//Select CamVendor
 	int CamVendor = CamVendor_NONE;
-	HMODULE hCamDetect = LoadLibrary(_T("NGSCamDetecter.dll"));
-
+	HMODULE hCamDetect = LoadLibrary(_T("NGSCamDetecter.dll"));//HikVision의 EnumDevices 함수가 있는 dll 로딩
 	if (hCamDetect)
 	{
-		typedef int (*fpCamDetect)(void);
-		fpCamDetect GzCamDetect = (fpCamDetect)GetProcAddress(hCamDetect, "GzCamDetect");
+		typedef int (*fpCamDetect)(void);//함수포인터
+		fpCamDetect GzCamDetect = (fpCamDetect)GetProcAddress(hCamDetect, "GzCamDetect"); //NGSCamDetecter.dll에서 GzCamDetect이름을 가진 함수 주소를 가져옴
 		CamVendor = GzCamDetect();
 		FreeLibrary(hCamDetect);
 	}
@@ -461,7 +460,7 @@ BOOL CHikVisionCamViewerDlg::OnInitDialog()
 		return false;
 	}
 
-
+	//
 	m_CamLinkPtr.GetVender = (fpGetVender)GetProcAddress(m_hCamLib, "GzCamLink_GetVender");
 	m_CamLinkPtr.InitDevice = (fpInitDevice)GetProcAddress(m_hCamLib, "GzCamLink_InitDevice");
 	m_CamLinkPtr.StartDevice = (fpStartDevice)GetProcAddress(m_hCamLib, "GzCamLink_StartDevice");

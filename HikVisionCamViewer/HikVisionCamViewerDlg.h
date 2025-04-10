@@ -5,9 +5,6 @@
 
 #include "GzCamLinkHeader.h"
 
-#define WM_TIMER_GRAB_INFO 1
-#define MAX_DEVICE_NUM 4
-
 // CHikVisionCamViewerDlg dialog
 class CHikVisionCamViewerDlg : public CDialog
 {
